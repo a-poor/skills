@@ -3,6 +3,18 @@ name: gpui
 description: GPUI framework knowledge covering actions/keybindings, async/background tasks and tokio interop, context management (App/Window/Context<T>/AsyncApp), custom elements (low-level Element trait), entity state management, event system, focus handling, global state, layout/styling (flexbox/CSS-like), scrolling and lists (ScrollHandle/uniform_list), overlays (deferred/anchored/modals), text/fonts/SVG/assets, RenderOnce components, window chrome, and testing. Use when working with any GPUI framework concept, building GPUI applications, or needing guidance on GPUI-specific APIs and patterns.
 ---
 
+## Project setup
+
+Depend on gpui via the Zed git repo. `gpui_platform` ships with **no default features**, so the
+platform features must be enabled explicitly. `font-kit` enables the macOS text system — without
+it the app runs but renders no text. `wayland` and `x11` enable the Linux backends (no-ops on
+macOS, keep them for portability):
+
+```toml
+[dependencies]
+gpui_platform = { git = "https://github.com/zed-industries/zed.git", features = ["font-kit", "wayland", "x11"] }
+```
+
 ## Navigation
 
 Load the relevant reference file based on the task:
