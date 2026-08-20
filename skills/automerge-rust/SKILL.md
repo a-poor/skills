@@ -287,6 +287,15 @@ Full changelog maps are at the end of each reference file.
   patches, merge semantics for concurrent marks, and the sharp edges (including a
   block-marker width bug under `Utf8CodeUnit`). Read before ANY marks, blocks,
   spans, or collaborative-editor formatting work.
+- **`references/editor-integration.md`** — how to wire an actual editor (GUI,
+  TUI, or headless collab server) to an automerge Text object, distilled from the
+  official automerge-prosemirror binding with every piece mapped to its Rust API:
+  the two unidirectional loops, position mapping between tree editors and flat
+  spans, the "splice for text / update_spans for structure" split, the
+  write-then-diff-then-verify pass, remote patch application against a spans
+  snapshot, selection via cursors, editor-local undo, echo suppression, schema
+  adaptation with lossless unknown-content round-tripping. Read before building
+  any editor binding or collaboration server on top of automerge.
 - **`references/autosurgeon.md`** — traits and exact derive attribute forms
   (`#[key]`, `reconcile=`, `reconcile_with=`, `with=`, `hydrate=`, `missing=`,
   `rename=`), enum representations, list-merge key mechanics, `Text`/`Counter`/

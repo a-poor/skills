@@ -11,6 +11,10 @@ Rich text is raw-automerge-only territory: **autosurgeon has no marks, blocks, o
 spans support at all** (its `Text` reconciles via `update_text` only). Drive these
 APIs directly, even in an otherwise autosurgeon-typed app.
 
+This file covers the document-side APIs. For wiring an actual editor to them —
+position mapping, the local/remote loops, undo, selection — read
+`references/editor-integration.md` after this one.
+
 Key imports:
 
 ```rust
