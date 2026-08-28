@@ -6,3 +6,4 @@ A central place for me to store some reusable skills.
 - [automerge-rust](./skills/automerge-rust/SKILL.md): Skill for working with [Automerge](https://github.com/automerge/automerge) in Rust
 - [ratatui](./skills/ratatui/SKILL.md): Skill for working building TUIs in Rust with [Ratatui](https://github.com/ratatui/ratatui)
 - [smart-brevity](./skills/smart-brevity/SKILL.md): Skill for writing like Axios
+- [improve-skill](./skills/improve-skill/SKILL.md): Skill for auditing how agent skills are used across local Claude Code, Codex, and OpenCode histories
