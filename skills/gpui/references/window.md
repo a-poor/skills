@@ -78,10 +78,14 @@ are separate; compilation does not establish the behavior listed below.
 A small native probe at that revision was also exercised through macOS app
 automation. Tab reordering kept the window in place, tab-close worked, empty
 chrome double-click zoomed/restored once per double-click, tab double-click did
-not invoke that action, and Window-menu left tiling worked. Empty-chrome drag
-attempts through that automation path did not move the window; the cause remains
-unresolved. First-click behavior in an inactive window and the traffic lights
-were not verified. Keep these checks in the consumer app's native test pass.
+not invoke that action, and Window-menu left tiling worked. Manual follow-up
+confirmed that dragging empty chrome moves the window and dragging tabs reorders
+them on drop without moving the window. Traffic lights appeared functional in
+manual use. With another app active, the first click back on a tab's close button
+closed the tab without moving the window. First-click tab selection was not
+separately confirmed. Automation's failure to move the window by dragging empty
+chrome remains unexplained. Keep these checks in the consumer app's native test
+pass.
 
 ### Platform differences and native verification
 
@@ -97,8 +101,9 @@ movement. Test the running native app with real mouse input:
 
 - Drag a tab: it reorders while the window stays in place.
 - Drag empty chrome: the window moves.
-- Activate a tab and use tab-close and other controls: their actions work without
-  starting a window move, including the first click into an inactive window.
+- Switch to another app, then make the first click back directly on a tab or its
+  close button. Check activation and the control's intended first-click behavior,
+  without starting a window move. Also check the controls while the window is active.
 - Double-click empty chrome: the configured native action occurs once; doing so
   on a tab or control does not trigger it.
 - Check the traffic lights and Window-menu tiling remain functional.
