@@ -91,6 +91,20 @@ fn test_with_window(cx: &mut TestAppContext) {
 }
 ```
 
+## Running-app and native verification
+
+Use headless tests for deterministic state and input behavior, then exercise the
+changed workflow in the visible app and inspect the result. Native titlebar
+dragging, OS-provided controls, activation, and platform input behavior need
+native checks; a passing `VisualTestContext` test does not exercise every OS path.
+See [window.md](window.md#platform-differences-and-native-verification) for a
+concrete titlebar checklist.
+
+For repeated agent-driven inspection, an optional development-only MCP bridge can
+pair user-like input with screenshots and state inspection. See
+[dev-mcp.md](dev-mcp.md) for suggested tools, capture constraints, and frame
+synchronization. It supplements real-app interaction testing.
+
 ## Additional Resources
 
 - For detailed patterns (including re-entrancy crash-free testing), see [test-reference.md](test-reference.md)

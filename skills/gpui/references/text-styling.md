@@ -63,5 +63,5 @@ links via `color` + `underline: UnderlineStyle`. Styles flow correctly through w
 ## Assets
 
 Implement `AssetSource` (`load`/`list`) over an embedded bundle (e.g. rust-embed) and install it with
-`Application::new().with_assets(Assets)` — `svg().path("icons/x.svg")` paths resolve through it. Path
+`gpui_platform::application().with_assets(Assets)` — `svg().path("icons/x.svg")` paths resolve through it. Path
 prefixes must match the embed's folder structure exactly; a wrong prefix fails silently (blank icon).

@@ -1,6 +1,11 @@
 ---
 name: gpui
-description: GPUI framework knowledge covering actions/keybindings, async/background tasks and tokio interop, context management (App/Window/Context<T>/AsyncApp), custom elements (low-level Element trait), entity state management, event system, focus handling, global state, layout/styling (flexbox/CSS-like), scrolling and lists (ScrollHandle/uniform_list), overlays (deferred/anchored/modals), text/fonts/SVG/assets, RenderOnce components, window chrome, and testing. Use when working with any GPUI framework concept, building GPUI applications, or needing guidance on GPUI-specific APIs and patterns.
+description: >-
+  Build, debug, and review Rust applications using GPUI. Use for GPUI actions and
+  keybindings, async work, contexts and entities, events and focus, custom elements,
+  layout and styling, lists, overlays, text and assets, components, window chrome,
+  testing, or development tooling for inspecting a running GPUI app. Verify APIs
+  against the project's pinned GPUI revision.
 ---
 
 ## Project setup
@@ -37,12 +42,34 @@ Load the relevant reference file based on the task:
 | Window chrome | [window.md](references/window.md) | `TitlebarOptions`, `WindowControlArea`, appearance/dark mode |
 | ElementId | [element-id.md](references/element-id.md) | `ElementId`, `.id()`, uniqueness rules, stateful elements |
 | Testing | [test.md](references/test.md) | `#[gpui::test]`, `TestAppContext`, `VisualTestContext` |
+| Running-app inspection | [dev-mcp.md](references/dev-mcp.md) | Optional development MCP, input automation, screenshots, frame synchronization, native verification |
 
 ## Ground truth
 
 When the project pins gpui via the Zed git repo, the vendored checkout under
 `~/.cargo/git/checkouts/zed-*/<rev>/crates/gpui/src/` is ground truth — verify any nontrivial API
 signature there (grep) before answering; several of this skill's own past errors came from guessing.
+
+When maintaining an API recipe, record the checked revision near it and
+compile-check representative consumers against a stated pin. Distinguish source
+inspection, compilation, headless tests, and native interaction checks; one does
+not establish the results of the others.
+
+### Focused verification coverage
+
+On Zed revision `4c7244790a075e862eeb4e5ccc12d6c8f5da6f7e` (macOS), representative
+action, context, async task, entity callback/model-view, event subscription,
+focus, `RenderOnce`, scrolling, and `uniform_list` snippets were compile-checked
+with minimal app-specific scaffolding. The startup helper and asset registration
+were checked against source. Headless GPUI tests exercised:
+
+- `set_global` and `update_global` notifying a dependent view through its observer.
+- Model notifications reaching a view, and reads of a separate entity during an update.
+- Modal Tab/Shift-Tab wrapping with background tab stops, including an empty modal.
+
+These checks cover selected recipes. Verify other examples and changed APIs
+against the consumer project's pin; native platform interaction remains a
+separate check.
 
 ## Extended References
 

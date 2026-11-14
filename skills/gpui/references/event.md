@@ -45,7 +45,7 @@ impl MyComponent {
 ```rust
 impl Listener {
     fn new(source: Entity<MyComponent>, cx: &mut App) -> Entity<Self> {
-        cx.new(|cx| {
+        cx.new(|cx: &mut Context<Self>| {
             // Subscribe to events
             cx.subscribe(&source, |this, emitter, event: &MyEvent, cx| {
                 match event {
@@ -69,7 +69,7 @@ impl Listener {
 ```rust
 impl Observer {
     fn new(target: Entity<Target>, cx: &mut App) -> Entity<Self> {
-        cx.new(|cx| {
+        cx.new(|cx: &mut Context<Self>| {
             // Observe entity for any changes
             cx.observe(&target, |this, observed, cx| {
                 // Called when observed.update() calls cx.notify()
@@ -89,6 +89,8 @@ impl Observer {
 
 ```rust
 // Parent emits events
+impl EventEmitter<ParentEvent> for Parent {}
+
 impl Parent {
     fn notify_children(&mut self, cx: &mut Context<Self>) {
         cx.emit(ParentEvent::Updated);
@@ -99,7 +101,7 @@ impl Parent {
 // Children subscribe
 impl Child {
     fn new(parent: Entity<Parent>, cx: &mut App) -> Entity<Self> {
-        cx.new(|cx| {
+        cx.new(|cx: &mut Context<Self>| {
             cx.subscribe(&parent, |this, parent, event, cx| {
                 this.handle_parent_event(event, cx);
             }).detach();
@@ -140,8 +142,9 @@ impl EventBus {
 ```rust
 cx.observe(&entity, |this, observed, cx| {
     // React to any state change
-    let state = observed.read(cx);
-    this.sync_with_state(state, cx);
+    // Own the needed data before borrowing cx mutably again.
+    let value = observed.read(cx).value.clone();
+    this.sync_with_value(value, cx);
 }).detach();
 ```
 
@@ -218,7 +221,10 @@ struct MyView {
 // _subscriptions.push(cx.subscribe(...));
 ```
 
-Use `.detach()` for permanent subscriptions; store in struct for subscriptions that should stop when the component unmounts.
+Use `.detach()` when the listener should last for the observing entity's lifetime.
+Store the subscription when it needs explicit cancellation. Hiding a component
+does not necessarily drop its entity or subscriptions; drop the stored handle
+when observation should stop.
 
 ## Click Handlers & Propagation
 

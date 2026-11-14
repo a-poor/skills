@@ -40,7 +40,9 @@ impl Render for FocusableComponent {
             .on_action(cx.listener(Self::on_enter))
             .child("Focusable content")
     }
+}
 
+impl FocusableComponent {
     // cx.listener callbacks take four arguments: (this, event, window, cx)
     // (Context::listener, app/context.rs:252)
     fn on_enter(&mut self, _: &Enter, _window: &mut Window, cx: &mut Context<Self>) {
@@ -172,7 +174,9 @@ impl Container {
 
 ### 1. Auto-focus on First Render
 
-Entity constructors usually have no `&mut Window`, and `focus` needs one — there is no `on_mount` hook. Store a flag and consume it at the top of `render`, where a `Window` exists (live examples: `src/pages/chat.rs` and `src/pages/skills.rs` in this repo):
+If an entity constructor is not passed a `&mut Window`, defer focusing until one
+is available. Store a flag and consume it at the top of `render`, or focus from
+the caller that opens the window. GPUI does not provide a general `on_mount` hook.
 
 ```rust
 struct MyDialog {
@@ -204,6 +208,11 @@ impl Render for MyDialog {
 
 ### 2. Focus Trap (Modal)
 
+`window.focus_next` and `focus_prev` traverse the window's tab stops; neither a
+parent focus handle nor `.tab_group()` alone confines focus to a modal. Keep an
+ordered `tab_stops: Vec<FocusHandle>` containing only the modal's currently
+visible, enabled controls and wrap within that list:
+
 ```rust
 impl Modal {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -213,12 +222,21 @@ impl Modal {
                 // KeyDownEvent carries a `keystroke: Keystroke` (interactive.rs:25);
                 // the key name is keystroke.key: String
                 if event.keystroke.key == "tab" {
-                    // Cycle within the modal's tab stops
-                    if event.keystroke.modifiers.shift {
-                        window.focus_prev(cx);
+                    if this.tab_stops.is_empty() {
+                        window.focus(&this.focus_handle, cx);
                     } else {
-                        window.focus_next(cx);
+                        let current = this.tab_stops.iter()
+                            .position(|handle| handle.is_focused(window));
+                        let count = this.tab_stops.len();
+                        let next = match (current, event.keystroke.modifiers.shift) {
+                            (Some(ix), true) => (ix + count - 1) % count,
+                            (Some(ix), false) => (ix + 1) % count,
+                            (None, true) => count - 1,
+                            (None, false) => 0,
+                        };
+                        window.focus(&this.tab_stops[next], cx);
                     }
+                    window.prevent_default();
                     cx.stop_propagation();
                 }
             }))
@@ -226,6 +244,11 @@ impl Modal {
     }
 }
 ```
+
+On opening, remember the previously focused handle and focus the first modal
+control (or its container if empty). Restore an appropriate handle on close and
+prevent pointer interaction with the background. Test Tab and Shift-Tab with
+focusable controls both before and after the modal in the window tree.
 
 ### 3. Conditional Focus
 

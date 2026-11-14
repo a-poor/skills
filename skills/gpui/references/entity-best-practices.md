@@ -24,7 +24,8 @@ entity_a.update(cx, |_, cx| {
 });
 ```
 
-**Note:** Updating two *different* entities in a nested fashion is safe. The restriction is strictly about re-entering the *same* entity's lock.
+**Note:** Accessing a different entity is supported, provided the nested work
+does not call back into an entity already being updated or rendered.
 
 ### `defer_in` Re-locks the Entity — Same Rules Apply
 
@@ -67,16 +68,20 @@ fn confirm(&mut self, _: bool, window: &mut Window, cx: &mut Context<ListState<S
 }
 ```
 
-### Render Callbacks Must Not Access External Entities
+### Render Callbacks Must Not Re-enter Borrowed Entities
 
-`render_item` and any other rendering hook runs inside the entity's render pass. Calling `entity.read(cx)` or `entity.update(cx, …)` on an external entity (which may itself be in a render/update pass) panics with the same re-entrancy error.
+Reading a separate model entity from `render` is valid. A read or update panics
+when its target is already borrowed on the current call stack. For example, a
+child callback can re-enter a parent that is still executing its update. Do not
+infer a borrow conflict merely because the target is an external entity.
 
-**Fix:** Keep a plain `snapshot` field updated eagerly from outside render after every mutation:
+**For a known cycle:** Pass the needed values into the callback, or maintain an
+owned snapshot when the source changes:
 
 ```rust
-// ❌ Panic — called during ListState render; external entity access re-enters
+// ❌ Panics if parent is already borrowed on the current call stack.
 fn render_item(&mut self, ix: IndexPath, …) -> … {
-    let checked = parent.read(cx).selection.contains(&ix); // PANIC
+    let checked = parent.read(cx).selection.contains(&ix);
 }
 
 // ✅ Read from snapshot field — no entity access at all
@@ -87,44 +92,16 @@ fn render_item(&mut self, ix: IndexPath, …) -> … {
 list.update(cx, |l, _| l.delegate_mut().update_snapshot(new_snapshot));
 ```
 
-### Use Weak References in Closures
+### Choose Callback Ownership Deliberately
 
-**Problem:** Strong references in closures can create retain cycles and memory leaks.
+Use `cx.listener(...)` for entity-owned element events; it already captures the
+entity weakly. A custom foreground callback should receive its context when
+invoked, rather than capture a borrowed `&mut Context` in a stored closure. See
+[the callback example](entity.md#avoid-ownership-cycles-in-callbacks).
 
-```rust
-// ❌ Bad: Strong reference creates retain cycle
-impl MyComponent {
-    fn setup_callback(&mut self, cx: &mut Context<Self>) {
-        let entity = cx.entity(); // Strong reference
-
-        some_callback(move || {
-            entity.update(cx, |state, cx| {
-                // This closure holds a strong reference
-                // If the closure itself is retained by the entity, memory leak!
-                cx.notify();
-            });
-        });
-    }
-}
-```
-
-**Solution:** Use weak references in closures.
-
-```rust
-// ✅ Good: Weak reference prevents retain cycle
-impl MyComponent {
-    fn setup_callback(&mut self, cx: &mut Context<Self>) {
-        let weak_entity = cx.entity().downgrade(); // Weak reference
-
-        some_callback(move || {
-            // Safe: weak reference doesn't prevent cleanup
-            let _ = weak_entity.update(cx, |state, cx| {
-                cx.notify();
-            });
-        });
-    }
-}
-```
+Use weak captures to break ownership cycles or let work stop when its owner is
+dropped. Strong captures are valid when their intended job is to keep an entity
+alive and no cycle exists.
 
 ### Use Inner Context in Closures
 
@@ -393,19 +370,17 @@ entity2.update(cx, |_, cx| {
 
 ## Async Best Practices
 
-### Always Use Weak References in Async Tasks
+### Use the Weak Handle Supplied to Entity Tasks
 
 ```rust
 // ✅ Good: Weak reference in spawned task
 impl MyComponent {
     fn fetch_data(&mut self, cx: &mut Context<Self>) {
-        let weak_entity = cx.entity().downgrade();
-
-        cx.spawn(async move |cx| {
+        cx.spawn(async move |this, cx| {
             let data = fetch_from_api().await;
 
             // Entity may have been dropped during fetch
-            let _ = weak_entity.update(cx, |state, cx| {
+            let _ = this.update(cx, |state, cx| {
                 state.data = Some(data);
                 cx.notify();
             });
@@ -419,19 +394,17 @@ impl MyComponent {
 ```rust
 impl MyComponent {
     fn fetch_data(&mut self, cx: &mut Context<Self>) {
-        let weak_entity = cx.entity().downgrade();
-
-        cx.spawn(async move |cx| {
+        cx.spawn(async move |this, cx| {
             match fetch_from_api().await {
                 Ok(data) => {
-                    let _ = weak_entity.update(cx, |state, cx| {
+                    let _ = this.update(cx, |state, cx| {
                         state.data = Some(data);
                         state.error = None;
                         cx.notify();
                     });
                 }
                 Err(e) => {
-                    let _ = weak_entity.update(cx, |state, cx| {
+                    let _ = this.update(cx, |state, cx| {
                         state.error = Some(e.to_string());
                         cx.notify();
                     });
@@ -450,30 +423,30 @@ Implement cancellation for long-running tasks.
 struct DataFetcher {
     current_task: Option<Task<()>>,
     data: Option<String>,
+    error: Option<String>,
 }
 
 impl DataFetcher {
     fn fetch_data(&mut self, url: String, cx: &mut Context<Self>) {
-        // Cancel previous task
-        self.current_task = None; // Dropping task cancels it
-
-        let weak_entity = cx.entity().downgrade();
-
-        let task = cx.spawn(async move |cx| {
-            let data = fetch_from_url(&url).await?;
-
-            let _ = weak_entity.update(cx, |state, cx| {
-                state.data = Some(data);
+        self.error = None;
+        self.current_task = Some(cx.spawn(async move |this, cx| {
+            let result = fetch_from_url(&url).await;
+            let _ = this.update(cx, |state, cx| {
+                match result {
+                    Ok(data) => state.data = Some(data),
+                    Err(error) => state.error = Some(error.to_string()),
+                }
                 cx.notify();
             });
-
-            Ok::<(), anyhow::Error>(())
-        });
-
-        self.current_task = Some(task);
+        })); // Replacing the field drops the old Task<()>.
+        cx.notify();
     }
 }
 ```
+
+This cancels polling of the old future. Work handed off to another executor or
+service may continue; see [task replacement](async.md#task-replacement--debounce--cancellation)
+for cancellation propagation and stale-result handling.
 
 ## Testing Best Practices
 
@@ -523,8 +496,8 @@ fn test_entity_observation(cx: &mut TestAppContext) {
 
 Before shipping entity-based code, verify:
 
-- [ ] No strong references in closures/callbacks (use `WeakEntity`)
-- [ ] No nested entity updates (use sequential updates)
+- [ ] No strong-reference ownership cycles in callbacks or parent/child links
+- [ ] No access that re-enters an entity already borrowed on the current call stack
 - [ ] Using inner `cx` in update closures
 - [ ] Batching updates before calling `cx.notify()`
 - [ ] Cleaning up invalid weak references periodically

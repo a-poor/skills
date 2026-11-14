@@ -19,7 +19,9 @@ pub struct ChatRow {
 }
 
 impl ChatRow {
-    pub fn new(id: impl Into<ElementId>, title: impl Into<SharedString>) -> Self { /* ... */ }
+    pub fn new(id: impl Into<ElementId>, title: impl Into<SharedString>) -> Self {
+        Self { id: id.into(), title: title.into(), on_click: None }
+    }
     pub fn on_click(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
         self.on_click = Some(Rc::new(f));
         self
@@ -39,8 +41,10 @@ impl RenderOnce for ChatRow {
 Key points:
 
 - `render` **consumes `self`** and gets `&mut App`, not `Context<Self>` — no `cx.listener`, no
-  `cx.notify`. To reach back into an entity, capture `cx.entity()` (or a clone of the `Entity`) in the
-  handler and call `entity.update(cx, |this, cx| { ...; cx.emit(...); cx.notify(); })`.
+  `cx.notify`. Construct the handler in the owning entity's render method using
+  `cx.listener(...)`, then pass it to the component. For an explicit entity handle,
+  use the callback's `&mut App` to update it; prefer a weak handle when a strong
+  capture would create an ownership cycle. `App` itself has no `cx.entity()`.
 - Handler props: `Box<dyn Fn>` for a single use; **`Rc<dyn Fn>` when the same handler is cloned into
   several rows/menu items** — a `Box` moves into the first closure and rows 2+ are a use-after-move
   compile error. `ClickEvent` carries no payload; per-row data flows only by closure capture.

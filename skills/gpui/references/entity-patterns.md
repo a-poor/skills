@@ -45,7 +45,11 @@ impl CounterView {
             listeners: Vec::new(),
         });
 
-        cx.new(|cx| Self { model })
+        cx.new(|cx| {
+            // Reading the model during render does not subscribe this view.
+            cx.observe(&model, |_this, _model, cx| cx.notify()).detach();
+            Self { model }
+        })
     }
 
     fn increment_count(&mut self, cx: &mut Context<Self>) {
@@ -62,8 +66,9 @@ impl Render for CounterView {
         div()
             .child(format!("Count: {}", count))
             .child(
-                Button::new("increment")
-                    .label("Increment")
+                div()
+                    .id("increment")
+                    .child("Increment")
                     .on_click(cx.listener(|this, _event, _window, cx| {
                         this.increment_count(cx);
                     }))

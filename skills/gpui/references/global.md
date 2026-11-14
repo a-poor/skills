@@ -28,7 +28,7 @@ impl Global for AppSettings {}
 
 ```rust
 fn main() {
-    let app = Application::new();
+    let app = gpui_platform::application();
     app.run(|cx: &mut App| {
         // Set global
         cx.set_global(AppSettings {
@@ -48,15 +48,22 @@ fn main() {
 ```rust
 impl MyComponent {
     fn change_theme(&mut self, new_theme: Theme, cx: &mut Context<Self>) {
-        cx.update_global::<AppSettings, _>(|settings, cx| {
+        cx.update_global::<AppSettings, _>(|settings, _cx| {
             settings.theme = new_theme;
-            // Global updates don't trigger automatic notifications
-            // Manually notify components that care
+            // GPUI queues notification of AppSettings observers.
         });
 
         cx.notify(); // Re-render this component
     }
 }
+```
+
+`set_global` and `update_global` notify global observers. Reading a global does
+not subscribe a view automatically. Register an observer once in each dependent
+view's constructor and retain or detach its subscription:
+
+```rust
+cx.observe_global::<AppSettings>(|_this, cx| cx.notify()).detach();
 ```
 
 ## Common Use Cases
@@ -124,7 +131,7 @@ impl MyComponent {
         let registry = cx.global::<ServiceRegistry>();
         let client = registry.http_client.clone();
 
-        cx.spawn(async move |cx| {
+        cx.spawn(async move |_this, _cx| {
             let data = client.get("api/data").await?;
             // Process data...
             Ok::<_, anyhow::Error>(())
@@ -147,28 +154,12 @@ struct GlobalState {
 impl Global for GlobalState {}
 ```
 
-### ✅ Immutable by Default
+### ✅ Use GPUI-managed Mutations for Reactive Globals
 
-Globals are read-only by default. Use interior mutability when needed:
-
-```rust
-#[derive(Clone)]
-struct Counter {
-    count: Arc<AtomicUsize>,
-}
-
-impl Global for Counter {}
-
-impl Counter {
-    fn increment(&self) {
-        self.count.fetch_add(1, Ordering::SeqCst);
-    }
-
-    fn get(&self) -> usize {
-        self.count.load(Ordering::SeqCst)
-    }
-}
-```
+Prefer `cx.update_global` or `cx.set_global` for state that drives views. Mutating
+an `AtomicUsize`, mutex, or other interior-mutable field directly bypasses GPUI's
+global notification path. Interior mutability can still suit a shared service,
+but its completion/update path must explicitly inform the UI when needed.
 
 ### ❌ Don't: Overuse Globals
 
@@ -193,5 +184,5 @@ let user_entity = cx.new(|_| UserState { ... });
 **Use Entities for:**
 - Component-specific state
 - State that changes frequently
-- State that needs notifications
+- State with independent ownership, lifetime, or per-instance notifications
 

@@ -24,7 +24,7 @@ impl MyComponent {
         cx.notify(); // Trigger re-render
 
         // Spawn async task
-        cx.spawn(async move |cx| {
+        cx.spawn(async move |_this, _cx| {
             // Async work
         }).detach();
 
@@ -38,15 +38,15 @@ impl MyComponent {
 
 ```rust
 fn main() {
-    let app = Application::new();
+    let app = gpui_platform::application();
     app.run(|cx: &mut App| {
         // Create entities
         let entity = cx.new(|cx| MyState::default());
 
         // Open windows
         cx.open_window(WindowOptions::default(), |window, cx| {
-            cx.new(|cx| Root::new(view, window, cx))
-        });
+            cx.new(|cx| Root::new(window, cx))
+        }).expect("open root window");
     });
 }
 ```
@@ -57,7 +57,7 @@ fn main() {
 impl Render for MyView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // Window operations
-        let is_focused = window.is_window_focused();
+        let is_active = window.is_window_active();
         let bounds = window.bounds();
 
         div().child("Content")
@@ -67,6 +67,9 @@ impl Render for MyView {
 
 ### AsyncApp - Async Context
 
+Here the spawning `cx` is `&mut App`, and `entity` is an owned `Entity` moved
+into the task. From `Context<Self>`, use the two-argument entity form below.
+
 ```rust
 cx.spawn(async move |cx: &mut AsyncApp| {
     let data = fetch_data().await;
@@ -74,7 +77,7 @@ cx.spawn(async move |cx: &mut AsyncApp| {
     entity.update(cx, |state, inner_cx| {
         state.data = data;
         inner_cx.notify();
-    }).ok();
+    }); // Strong Entity::update returns the closure result at the checked revision.
 }).detach();
 ```
 
@@ -120,7 +123,7 @@ cx.subscribe(&entity, |this, source, event, cx| {
 
 ```rust
 // Window state
-let focused = window.is_window_focused();
+let active = window.is_window_active();
 let bounds = window.bounds();
 let scale = window.scale_factor();
 
@@ -131,9 +134,9 @@ window.remove_window();
 ### Async Operations
 
 ```rust
-// Spawn foreground task
-cx.spawn(async move |cx| {
-    // Async work with entity access
+// From Context<Self>: weak entity handle plus async app context
+cx.spawn(async move |this, cx| {
+    let _ = this.update(cx, |state, cx| cx.notify());
 }).detach();
 
 // Spawn background task
@@ -144,13 +147,18 @@ cx.background_spawn(async move {
 
 ## Context Hierarchy
 
-```
-App (Global)
-  └─ Window (Per-window)
-       └─ Context<T> (Per-component)
-            └─ AsyncApp (In async tasks)
-                 └─ AsyncWindowContext (Async + Window)
-```
+These are access contexts, not a nested ownership or inheritance tree:
+
+| Context | Relationship |
+|---|---|
+| `App` | Owns application state and entity storage. |
+| `Context<T>` | Gives access to the current entity and dereferences to `App`; some methods have entity-specific callback signatures. |
+| `Window` | Passed alongside `App` or `Context<T>` for window operations. |
+| `AsyncApp` | A handle used across awaits; access entities through `read_with`/`update`. |
+| `AsyncWindowContext` | Also identifies a window; use `update_in` for window-aware entity updates. |
+
+In particular, `App::spawn` takes an async closure with one argument (`cx`), while
+`Context<T>::spawn` takes two (`this`, `cx`). Check the receiver's type.
 
 ## cx.listener — Binding Callbacks to Self
 
@@ -220,10 +228,11 @@ let _sub = cx.observe_window_activation(window, |this, window, cx| {
 React when a global value changes:
 
 ```rust
-cx.observe_global::<Theme>(|cx| {
+// From Context<Self>; store the subscription or detach it.
+cx.observe_global::<Theme>(|_this, cx| {
     // Theme changed — react
     cx.notify();
-});
+}).detach();
 ```
 
 ## defer and defer_in
@@ -231,9 +240,9 @@ cx.observe_global::<Theme>(|cx| {
 Schedule work after the current update completes:
 
 ```rust
-// defer: runs after current App update, no window access
+// App::defer (also available through Context<T>): one &mut App argument
 cx.defer(|cx| {
-    // Runs after current entity update is done
+    // Runs after the current update; reacquire an entity through its handle if needed.
 });
 
 // defer_in: runs after update, with window access

@@ -14,12 +14,14 @@ A strong reference to state of type `T`.
 - `read(cx)` → `&T` - Immutable access to state
 - `read_with(cx, |state, cx| ...)` → `R` - Read with closure, returns closure result
 - `update(cx, |state, cx| ...)` → `R` - Mutable update with `Context<T>`, returns closure result
-- `update_in(cx, |state, window, cx| ...)` → `R` - Update with `Window` access (requires `AsyncWindowContext` or `VisualTestContext`)
+- `update_in(cx, |state, window, cx| ...)` → `C::Result<R>` - Update with `Window` access through a `VisualContext`; `AsyncWindowContext` returns `Result<R>` because its window can close
 
 **Important Notes:**
 - Trying to update an entity while it's already being updated will panic
 - Within closures, use the inner `cx` provided to avoid multiple borrow issues
-- With async contexts, return values are wrapped in `anyhow::Result`
+- At revision `4c7244790a075e862eeb4e5ccc12d6c8f5da6f7e`, strong-entity
+  `read_with` and `update` return the closure result directly, including with
+  `AsyncApp`. Do not add `.ok()` or `?` just because the context is async.
 
 ### WeakEntity<T>
 
@@ -36,7 +38,8 @@ A weak reference to state of type `T`.
 - Store references in closures/callbacks without preventing cleanup
 - Optional relationships between components
 
-**Important:** All operations return `Result` since the entity may no longer exist.
+**Important:** Access through `read_with`/`update`/`update_in` is fallible because
+the entity may no longer exist. `upgrade` returns `Option`, not `Result`.
 
 ### AnyEntity
 
@@ -123,7 +126,7 @@ Update with both `Window` and `Context<T>` access.
 
 ```rust
 my_entity.update_in(cx, |state, window, cx| {
-    state.focused = window.is_window_focused();
+    state.focused = window.is_window_active(); // native window activation
     cx.notify();
 });
 ```
@@ -273,7 +276,7 @@ if entity1.entity_id() == entity2.entity_id() {
 
 ### WeakEntity Operations
 
-All `WeakEntity` operations return `Result`:
+`WeakEntity` state-access methods return `Result`; `upgrade()` returns `Option`:
 
 ```rust
 let weak = entity.downgrade();

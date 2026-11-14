@@ -99,10 +99,12 @@ impl MyView {
             loop {
                 cx.background_executor().timer(Duration::from_secs(1)).await;
 
-                this.update(cx, |state, cx| {
+                if this.update(cx, |state, cx| {
                     state.tick();
                     cx.notify();
-                }).ok();
+                }).is_err() {
+                    break; // Stop when the entity is gone.
+                }
             }
         });
 
@@ -146,10 +148,12 @@ cx.spawn(async move |this, cx: &mut AsyncApp| {
     loop {
         cx.background_executor().timer(Duration::from_secs(5)).await;
 
-        this.update(cx, |state, cx| {
+        if this.update(cx, |state, cx| {
             state.tick();
             cx.notify();
-        }).ok();
+        }).is_err() {
+            break;
+        }
     }
 }).detach();
 ```
@@ -157,6 +161,9 @@ cx.spawn(async move |this, cx: &mut AsyncApp| {
 ### 4. Task Cancellation
 
 Tasks are automatically cancelled when dropped. Store in struct to keep alive.
+For periodic work, retain the task when it should stop as soon as the owner is
+dropped. A detached loop must exit on a failed weak-entity update; ignoring that
+failure makes it keep waking after the view is gone.
 
 ## Common Pitfalls
 
@@ -212,10 +219,13 @@ fn on_edit(&mut self, cx: &mut Context<Self>) {
 }
 ```
 
-Use `Duration::ZERO` to bypass the debounce (e.g. on Enter). The same trick discards stale in-flight
-loads: replacing the task guarantees at most one live request. Detached tasks can't be cancelled — prefer
-stored tasks when the work can go stale, and race-guard detached updates by checking expected state inside
-`this.update` before applying a late result.
+Use `Duration::ZERO` to bypass the debounce (e.g. on Enter). Replacing the stored
+task cancels polling of its future. It does not necessarily stop work handed to
+another executor, an independently spawned task, a blocking operation, or a
+remote service. Propagate cancellation where supported and check a request
+generation or expected state before applying results from independently running
+work. Detaching gives up cancellation through this task handle; retain the handle
+or provide an explicit cancellation mechanism when the work can go stale.
 
 ## Tokio interop
 

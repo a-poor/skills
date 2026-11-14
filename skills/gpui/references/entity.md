@@ -89,21 +89,20 @@ impl MyComponent {
 
 ## Core Principles
 
-### Always Use Weak References in Closures
+### Avoid Ownership Cycles in Callbacks
 
 ```rust
-// ✅ Good: Weak reference prevents retain cycles
+// A custom foreground callback receives App when it runs; do not capture &mut cx.
 let weak = cx.entity().downgrade();
-callback(move || {
-    let _ = weak.update(cx, |state, cx| cx.notify());
-});
-
-// ❌ Bad: Strong reference may cause memory leak
-let strong = cx.entity();
-callback(move || {
-    strong.update(cx, |state, cx| cx.notify());
-});
+let callback = move |cx: &mut App| {
+    let _ = weak.update(cx, |_state, cx| cx.notify());
+};
 ```
+
+For element events, prefer `cx.listener(...)`, which already keeps a weak handle
+to the owning entity. A strong capture is appropriate when the callback should
+keep an entity alive, provided it does not form a cycle. Choose ownership by
+lifetime, rather than replacing every `Entity` with `WeakEntity`.
 
 ### Use Inner Context
 
@@ -121,7 +120,9 @@ entity.update(cx, |state, inner_cx| {
 
 ### Avoid Nested Entity Updates
 
-Nested `entity.update(cx, …)` calls are dangerous. The default posture is: **do not nest them**. The sub-cases below clarify when a panic is guaranteed vs. merely possible.
+Track which entities are already being updated or rendered. Nested access to a
+different entity is supported; re-entering an entity that is already borrowed
+panics. The sub-cases below distinguish these cases.
 
 **Same entity → always panics.**  
 GPUI locks an entity for the entire duration of its update or render pass. Re-entering that same lock panics immediately:
@@ -188,12 +189,16 @@ impl SomeDelegate for MyAdapter {
 }
 ```
 
-**Snapshot pattern for render callbacks.** `render_item` (and any other rendering hook) runs inside the entity's render pass. It must never call `entity.read(cx)` or `entity.update(cx, …)` on any external entity. Instead, keep a plain `snapshot` field updated eagerly from *outside* render after every mutation:
+**Snapshot pattern for re-entrant render callbacks.** Reading a separate model
+entity from `render` is normal. The hazard is reading an entity that is already
+borrowed on the current call stack, such as a parent still executing an update
+when it invokes a child callback. In that case, pass the needed values into the
+callback or keep an owned snapshot synchronized when the source changes:
 
 ```rust
-// ❌ Panic in render_item — ListState is already locked
+// ❌ Panics only if parent_entity is already borrowed on this call stack.
 fn render_item(&mut self, ix: IndexPath, window: &mut Window, cx: &mut Context<ListState<Self>>) -> … {
-    let checked = parent_entity.read(cx).selection.contains(&ix); // PANIC
+    let checked = parent_entity.read(cx).selection.contains(&ix);
 }
 
 // ✅ Read from a plain snapshot field — no entity access
