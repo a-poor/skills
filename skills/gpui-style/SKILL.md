@@ -1,28 +1,43 @@
 ---
 name: gpui-style
-description: Design-token system for GPUI (Zed's Rust UI framework) modeled on shadcn/ui, providing semantic surface/foreground token pairs, a `Theme` global read via `cx.theme()`, per-region surfaces (app/card/popover/sidebar), one radius base that derives the whole scale, and derived hover/active/focus/disabled states. Use whenever writing or reviewing GPUI render code that sets colors, borders, radii, or fonts — including any `.bg(`, `.text_color(`, `.border_color(`, `.rounded`, `rgb(0x…)`, or `hsla(…)` inside a `Render`/`RenderOnce` impl. Also use when the user asks to add a theme, dark mode, a palette, or a design system to a GPUI app, mentions tokens like primary/muted/accent/destructive/foreground/ring, asks why their GPUI UI looks inconsistent or unstyled, or wants to port shadcn/ui or Tailwind theming to Rust. Trigger even without the word "theme" — "style this panel", "make this button look better", or "add a sidebar" in a GPUI codebase should pull this in.
+description: >-
+  Style GPUI applications with semantic color pairs, region surfaces, consistent
+  typography and radii, and interaction states. Use when adding or reviewing GPUI
+  styling, themes, dark mode, palettes, or design systems, including requests to
+  style a panel, button, or sidebar. Adapt to the app's existing theme and the
+  requested scope; the supplied shadcn-inspired Theme scaffold is optional.
 ---
 
 # GPUI theming with semantic design tokens
 
-A port of the shadcn/ui token model to GPUI. The point of the system: **render code names roles, never colors.** A button says "primary surface, primary foreground" — the `Theme` global answers what color that is right now.
+The supplied scaffold adapts shadcn/ui's token model to GPUI: render code names
+semantic roles, and the `Theme` global supplies their values. Use those roles
+with the app's existing design system, or adopt this scaffold when a new theme
+system fits the request.
 
-## The one rule
+## Prefer semantic tokens
 
-> **No color, radius, or font literal ever appears in a `Render` or `RenderOnce` impl.**
-> Every visual value comes from `cx.theme()`.
+Use the app's existing theme for shared colors, radii, and typography. The supplied
+system exposes these through `cx.theme()`; another system may use different names
+or accessors. Preserve those conventions and the user's requested design.
 
-If you are about to write `rgb(0x1e1e2e)`, `hsla(...)`, `.rounded_md()`, or `.text_sm()` inside render code, stop and use a token instead. `.rounded_md()` is a hardcoded Tailwind constant; it does not follow the theme's radius.
+When using this scaffold, prefer tokens over repeated `rgb(...)`, `.rounded_md()`,
+or `.text_sm()` values in render code. Fixed GPUI helpers do not follow the theme's
+radius or type scale. A local styling change does not require introducing a full
+theme system or migrating unrelated components.
 
 ## Workflow
 
-1. **Check for an existing theme.** Look for a type implementing `gpui::Global` with token fields (`grep -rn "impl Global for" src/`). If one exists, use it and match its naming — do not introduce a second system.
-2. **If none exists**, scaffold it from `references/theme-module.md` (complete, drop-in `theme.rs`). Do not hand-roll a partial version.
-3. **Identify the region** you are rendering into and pick its surface from the table in §3.
-4. **Build with tokens only**, following §2 (pairing), §4 (states), §5 (shape/type).
+1. **Check for an existing theme.** Inspect imports, style helpers, and globals (`rg -n 'impl.*Global for|trait.*Theme' src/`). If one exists, use it and match its naming.
+2. **If none exists**, match the task's scope. For a new theme system, use [theme-module.md](references/theme-module.md) as a starting point. For a local change, follow nearby styles or introduce only the shared tokens needed.
+3. **Identify the region** you are rendering into. For the supplied scaffold, pick its surface from §3; otherwise use the app's equivalent roles.
+4. **Reuse theme values**, following the pairing, state, and shape/type guidance in §2, §4, and §5 as applicable.
 5. **Self-check** against §7 before finishing.
 
-## 1. The token set (names are locked — do not rename or invent)
+## 1. The supplied token set
+
+The names below match the reference module. Keep its examples consistent when
+adopting it; map the roles onto existing names when working in another system.
 
 Colors are `gpui::Hsla`. Tokens divide into **per-surface** tokens (they differ by region) and **global** tokens (identical everywhere).
 
@@ -50,7 +65,7 @@ Colors are `gpui::Hsla`. Tokens divide into **per-surface** tokens (they differ 
 | `radius` | one base length; the whole scale derives from it |
 | `font` | family + size scale |
 
-**Derived state fields** (`primary_hover`, `primary_active`, `ring_focus`, `destructive_subtle`, …) are computed once by `ThemeSpec::resolve()`. **Never author them by hand and never compute them at a call site.** See §4.
+**Derived state fields** (`primary_hover`, `primary_active`, `ring_focus`, `destructive_subtle`, …) are computed by `ThemeSpec::resolve()` in this scaffold. Keep that policy in the resolver instead of recomputing it in each component. See §4.
 
 Notes on the roles that are easy to get wrong:
 
@@ -64,17 +79,22 @@ Notes on the roles that are easy to get wrong:
 > Every token that paints a **surface** ships with the foreground that sits **on** it. Set both, from the same pair, in the same builder chain.
 
 ```rust
+let t = cx.theme();
+let s = t.surface(surface_kind); // surface_kind: SurfaceKind
+
 // correct — pair set together
-div().bg(t.primary).text_color(t.primary_fg)
+div().bg(s.primary).text_color(s.primary_fg)
 
 // wrong — foreground from a different pair, contrast not guaranteed
-div().bg(t.primary).text_color(s.fg)
+div().bg(s.primary).text_color(s.fg)
 
 // wrong — a surface color used as text
-div().text_color(t.primary_fg)   // primary_fg only ever sits on primary
+div().text_color(s.primary)
 ```
 
-This is what makes contrast correct by construction across every theme and both modes, without any component knowing the palette.
+Pairing preserves the palette's intended contrast without components knowing its
+colors. Validate the authored pairs in both modes; pairing alone does not ensure
+that the chosen colors have sufficient contrast.
 
 `border`, `input`, and `ring` have no foreground pair — they are line colors, never surfaces.
 
@@ -97,7 +117,10 @@ CSS gets region-scoped theming free from the cascade. GPUI does not, so a surfac
 | Titlebar, toolbar, status bar | `Sidebar` | chrome shares the nav palette by default |
 | Modal scrim | — | `hsla(0., 0., 0., 0.5)` — the one allowed literal, or `t.scrim` |
 
-**Elevation is expressed as color, not shadow.** In light mode raised surfaces get *lighter*; in dark mode they also get lighter (the background is darkest). Use `shadow_lg()` only for genuinely floating layers (popovers, modals) — never on cards.
+The supplied palette expresses elevation through surface color and reserves
+shadows for floating layers such as popovers and modals. Preserve an existing
+app's elevation conventions when they differ; a card restyle need not redesign
+the rest of the application.
 
 Component signature convention: stateless components take the surface they render onto.
 
@@ -115,17 +138,25 @@ impl Button {
 
 Default to `SurfaceKind::App`; a container that owns a non-default surface passes it down. This replaces shadcn's flat `--sidebar-*` prefix hack with one structure that works for any region.
 
-## 4. States are derived, never authored
+## 4. Derived states in the supplied scaffold
 
-Do not write per-state color values into the theme spec or into components. `resolve()` computes them from the base tokens using fixed rules:
+`resolve()` computes interaction states from base tokens. Adjust the shared
+derivation policy when adopting this scaffold; use the existing state tokens
+when working in another theme system.
+
+Base `primary`/`primary_fg` tokens live on `Surface` (`s`). The supplied module's
+derived `primary_hover`/`primary_active` tokens live on `Theme` (`t`) and are shared
+across regions: `resolve()` derives them using `app.bg`. If a design requires
+distinct primary colors or state derivation per region, extend `Surface` and the
+resolver together instead of mixing region-specific bases with global states.
 
 | State | Rule |
 |---|---|
-| **Hover, filled** | base color moved ~10% toward the surface background → `t.primary_hover`, `t.secondary_hover`, `t.destructive_hover` |
+| **Hover, filled** | `state_shift(base, app.bg, d.hover_shift)` → `t.primary_hover`, `t.secondary_hover`, `t.destructive_hover`; default HSL lightness shift is `0.05` |
 | **Hover, transparent** (ghost button, menu row, list item) | paint `s.accent` behind it; text becomes `s.accent_fg` |
-| **Active / pressed** | base moved ~18% toward the surface background → `*_active` |
+| **Active / pressed** | `state_shift(base, app.bg, d.active_shift)` → `t.primary_active`, `t.secondary_active`; default shift is `0.09`. The destructive recipe reuses `t.destructive_hover`. |
 | **Selected** | `s.accent` + `s.accent_fg`, persistent (not a hover style) |
-| **Focus** | `s.ring` at 50% alpha as a 3px spread box-shadow — `t.ring_focus`; keyboard focus only |
+| **Focus** | `s.ring` at 50% alpha as a 3px spread box-shadow — `t.ring_focus`; apply while focused |
 | **Disabled** | `.opacity(0.5)` on the whole element + drop the click handler + `.cursor_default()`. One rule for every component; no disabled color tokens. |
 | **Invalid** | `.border_color(t.destructive)` + focus ring becomes `t.destructive_ring` |
 | **Subtle status fill** | `t.destructive_subtle` (destructive at ~10–15% alpha) for error banners |
@@ -133,17 +164,26 @@ Do not write per-state color values into the theme spec or into components. `res
 In GPUI these are style closures on a stateful `div()`:
 
 ```rust
+let t = cx.theme();
+let s = t.surface(SurfaceKind::App);
+
 div()
     .id("save")
     .px_3().py_1p5()
     .rounded(t.radius.md())
-    .bg(t.primary).text_color(t.primary_fg)
+    .bg(s.primary).text_color(s.primary_fg)
     .hover(|st| st.bg(t.primary_hover))
     .active(|st| st.bg(t.primary_active))
     .cursor_pointer()
 ```
 
 `.hover()` needs no id; `.active()` and `.focus()` require `.id(...)` (it turns `Div` into `Stateful<Div>`).
+
+Focus styling does not itself establish keyboard navigation. Preserve or provide
+the intended focus handle (`.track_focus(&handle)`), tab order (`.tab_index(...)`),
+and Tab/Shift-Tab routing through the app's navigation policy.
+On revisions that provide it, `.focus_visible(...)` restricts a style to focus
+from keyboard navigation; `.focus(...)` also applies after pointer focus.
 
 Focus ring recipe — GPUI has no CSS `outline`, so use a zero-blur spread shadow, which does not affect layout:
 
@@ -157,7 +197,9 @@ use gpui::{BoxShadow, point, px};
 }]).border_color(t.app.ring))
 ```
 
-Why derived rather than alpha-at-call-site: shadcn writes `bg-primary/90` and lets CSS composite over whatever parent happens to be there. That works in CSS and is fragile in GPUI, where you would recompute it in every component. Deriving once in `resolve()` puts the rule in one place and makes it tunable (see §6).
+`state_shift` moves toward the background for strongly contrasting fills and away
+for low-contrast fills, keeping the state change visible. Deriving once in
+`resolve()` keeps that policy in one place and makes it tunable (see §6).
 
 ## 5. Shape and type
 
@@ -170,7 +212,9 @@ t.radius.lg()   // base       ← the default for cards and panels
 t.radius.xl()   // base * 1.4
 ```
 
-Use `.rounded(t.radius.md())`. **Never** `.rounded_md()` / `.rounded_lg()` — those are fixed constants that ignore the theme.
+With this scaffold, use `.rounded(t.radius.md())`; `.rounded_md()` and
+`.rounded_lg()` are fixed constants that ignore its radius setting. Keep fixed
+helpers when they are an intentional convention of the existing design.
 
 Rough assignment: badges/inputs/buttons `md`, cards/panels/popovers `lg`, small chips `sm`, avatars `.rounded_full()`.
 
@@ -186,14 +230,14 @@ Weight comes from `FontWeight::{NORMAL, MEDIUM, SEMIBOLD}` directly — not a to
 
 **Spacing is not tokenized.** Use GPUI's numeric scale (`.p_2()`, `.gap_3()`, `.px_4()`) — it is already Tailwind's 0.25rem step and is consistent by construction. Adding spacing tokens buys nothing and enlarges the authoring surface.
 
-## 6. What is locked vs. what the developer configures
+## 6. Scaffold conventions and configuration
 
-| Locked by this skill (invariants) | Configured by the developer |
+| Supplied scaffold conventions | Configured by the developer |
 |---|---|
 | Token names and roles (§1) | The ~24 base color values |
 | Surface/foreground pairing (§2) | `radius` base length |
 | Region → surface mapping defaults (§3) | Font families and size scale |
-| States are derived, not authored (§4) | Derivation constants (`hover_mix`, `active_mix`, `ring_alpha`, `disabled_opacity`) via `Derivation` |
+| States are derived, not authored (§4) | Derivation constants (`hover_shift`, `active_shift`, `ring_alpha`, `disabled_opacity`) via `Derivation` |
 | Radius derives from one base (§5) | Extra semantic colors (`success`/`warning`/`info`) |
 | No literals in render code | Which surfaces diverge (sidebar can just clone `app`) |
 
@@ -201,7 +245,7 @@ Weight comes from `FontWeight::{NORMAL, MEDIUM, SEMIBOLD}` directly — not a to
 
 That split is what makes both stories work:
 
-- **Locked at compile time** — ship `ThemeSpec::light()` / `ThemeSpec::dark()` as consts; users get no choice.
+- **Built-in presets** — ship `ThemeSpec::light()` / `ThemeSpec::dark()` constructors without exposing user configuration; these are ordinary functions, not const values.
 - **Configurable at runtime** — deserialize `ThemeSpec` from a TOML/JSON settings file, `resolve()`, `cx.set_global(theme)`.
 
 Either way components are identical, because they only ever see the resolved `Theme`.
@@ -210,14 +254,18 @@ Either way components are identical, because they only ever see the resolved `Th
 
 ## 7. Self-check before finishing
 
-- [ ] Zero `rgb(0x…)` / `rgba(0x…)` / `hsla(…)` literals in render code (scrim excepted).
+Apply these checks to the changed components and the theme system in use. The
+field names and strict token conventions below describe the supplied scaffold;
+they do not require an app-wide migration for a local fix.
+
+- [ ] Shared visual values reuse the theme; intentional local exceptions follow the project's conventions.
 - [ ] Every `.bg()` on a surface has a matching `.text_color()` from the same pair.
 - [ ] Every `svg()` has its own theme-based `.text_color(...)`; any hover recoloring is applied directly to the SVG too.
-- [ ] Radius comes from `t.radius.*()`, not `.rounded_md()` / `.rounded_lg()`.
-- [ ] Secondary text uses `s.muted_fg`; no third gray was invented.
+- [ ] Radius and text sizes follow the chosen theme or existing design conventions.
+- [ ] Secondary text uses the appropriate semantic role (`s.muted_fg` in this scaffold).
 - [ ] The region uses the surface from §3's table, and its border comes from that surface.
 - [ ] Interactive elements have hover, active, focus, and disabled handled per §4 — not just hover.
-- [ ] Shadows only on popovers/modals; cards separate by color + border.
+- [ ] Elevation follows the app's conventions; the supplied scaffold uses color + border for cards.
 - [ ] The view redraws on theme change (`cx.observe_global::<Theme>(|_, cx| cx.notify()).detach()` in the root view's constructor).
 
 **Auditing an existing codebase:**
@@ -240,4 +288,4 @@ Load these as needed — do not read all three up front.
 
 ## Ground truth
 
-GPUI is pre-1.0 and its APIs move between commits. Before relying on any nontrivial signature (`Hsla` helpers, `BoxShadow` fields, `refresh_windows`, `WindowAppearance`), verify against the pinned revision — the vendored checkout under `~/.cargo/git/checkouts/zed-*/<rev>/crates/gpui/src/` is authoritative. The reference implementation deliberately defines its own `alpha`/`mix_toward` helpers rather than depending on `Hsla`'s inherent methods, so it compiles across revisions.
+GPUI is pre-1.0 and its APIs move between commits. Before relying on any nontrivial signature (`Hsla` helpers, `BoxShadow` fields, `refresh_windows`, `WindowAppearance`), verify against the pinned revision — the vendored checkout under `~/.cargo/git/checkouts/zed-*/<rev>/crates/gpui/src/` is authoritative. The reference implementation defines its own `alpha`/`state_shift` helpers to reduce dependence on `Hsla`'s inherent methods; compile-check the module and representative consumers against the project's pin.

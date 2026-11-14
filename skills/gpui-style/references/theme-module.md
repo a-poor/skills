@@ -2,6 +2,11 @@
 
 Drop-in module. Add `mod theme;` to your crate, call `theme::init(cx)` inside `application().run(...)`, then read tokens with `cx.theme()`.
 
+The core module and the skill's primary-pair/Save examples were compile-checked
+on GPUI revision `4c7244790a075e862eeb4e5ccc12d6c8f5da6f7e` (macOS), with and
+without this module's `serde` feature. This checks type compatibility, not visual
+contrast or native interaction behavior. Verify other revisions before copying.
+
 Contents: [Layout](#layout) · [Types](#the-module) · [Wiring it up](#wiring-it-up) · [Switching themes](#switching-themes) · [Runtime config](#runtime-configuration) · [Validation](#validation) · [Extending](#extending-the-token-set)
 
 ## Layout
@@ -16,7 +21,7 @@ Two layers:
 ## The module
 
 ```rust
-//! Design tokens. See the `gpui-theme` skill for the rules that govern this file.
+//! Design tokens. See the `gpui-style` skill for this module's conventions.
 
 use gpui::{App, Global, Hsla, Pixels, SharedString, px};
 
@@ -161,11 +166,11 @@ pub struct Radii {
 }
 
 impl Radii {
-    pub fn sm(&self) -> Pixels { px(self.base.0 * 0.6) }
-    pub fn md(&self) -> Pixels { px(self.base.0 * 0.8) }
+    pub fn sm(&self) -> Pixels { self.base * 0.6 }
+    pub fn md(&self) -> Pixels { self.base * 0.8 }
     pub fn lg(&self) -> Pixels { self.base }
-    pub fn xl(&self) -> Pixels { px(self.base.0 * 1.4) }
-    pub fn xl2(&self) -> Pixels { px(self.base.0 * 1.8) }
+    pub fn xl(&self) -> Pixels { self.base * 1.4 }
+    pub fn xl2(&self) -> Pixels { self.base * 1.8 }
 }
 
 #[derive(Clone, Debug)]
@@ -463,9 +468,13 @@ let spec: ThemeSpec = toml::from_str(&std::fs::read_to_string(path)?)?;
 cx.set_global(spec.resolve(&Derivation::default()));
 ```
 
-`Hsla` does not implement `serde` traits in gpui itself. Either add a `#[serde(with = "…")]` adapter that parses `"oklch(0.54 0.22 293)"` / `"#rrggbb"` strings, or define a `SpecColor` newtype in your crate and convert in `resolve()`. Prefer the string form — it keeps hand-edited theme files readable.
+At the checked revision, `Hsla` implements `Serialize` and `Deserialize` via
+`Rgba`. Verify its accepted representation at the project's pin before defining
+the config format. For a custom format such as `"oklch(0.54 0.22 293)"`, add a
+`#[serde(with = "…")]` adapter or a `SpecColor` newtype and convert in `resolve()`.
 
-If you want themes locked at compile time instead, skip `serde` entirely and expose only `ThemeSpec::light()` / `::dark()`.
+For built-in presets without user configuration, skip `serde` and expose only
+`ThemeSpec::light()` / `::dark()`.
 
 ## Validation
 

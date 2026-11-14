@@ -2,6 +2,9 @@
 
 Canonical token usage per widget. Copy the *structure*, not necessarily the exact sizes.
 
+These recipes use the supplied scaffold. Map their roles onto an existing theme
+and preserve the app's design conventions when adapting a single component.
+
 Contents: [Preamble](#preamble) · [Button](#button) · [Icon button](#icon-button) · [Input](#text-input) · [Card](#card--panel) · [List row](#list-row) · [Menu / popover](#menu--popover) · [Sidebar](#sidebar) · [Badge](#badge) · [Table](#table) · [Modal](#modal) · [Tooltip](#tooltip) · [Separator](#separator--empty-state) · [Anti-patterns](#anti-patterns)
 
 ## Preamble
@@ -351,8 +354,8 @@ div().flex().flex_col().items_center().gap_1().py_8()
 | `.rounded_md()` | `.rounded(t.radius.md())` |
 | `.text_sm()` | `.text_size(t.font.sm)` |
 | `.text_color(rgb(0x888888))` for captions | `.text_color(s.muted_fg)` |
-| `.bg(t.primary).text_color(s.fg)` | `.bg(s.primary).text_color(s.primary_fg)` |
-| Computing hover with `alpha(t.primary, 0.9)` at a call site | `t.primary_hover` |
+| `.bg(s.primary).text_color(s.fg)` | `.bg(s.primary).text_color(s.primary_fg)` |
+| Computing hover with `alpha(s.primary, 0.9)` at a call site | `t.primary_hover` |
 | `if t.is_dark { … } else { … }` inside a component | Encode the difference as a token difference in the two `ThemeSpec`s |
 | `.shadow_md()` on a card | Border + surface color |
 | A third gray for tertiary text | `s.muted_fg` (there are two text colors, not three) |
