@@ -85,26 +85,12 @@ fn test_counter_bounds(cx: &mut TestAppContext) {
 
 ### Performance Testing
 
-Test performance characteristics:
-
-```rust
-#[gpui::test]
-fn test_operation_performance(cx: &mut TestAppContext) {
-    let component = cx.new(|cx| MyComponent::new(cx));
-
-    let start = std::time::Instant::now();
-
-    // Perform many operations
-    for i in 0..1000 {
-        component.update(cx, |comp, cx| {
-            comp.perform_operation(i, cx);
-        });
-    }
-
-    let elapsed = start.elapsed();
-    assert!(elapsed < Duration::from_millis(100), "Operations should complete quickly");
-}
-```
+Keep wall-clock benchmarks separate from deterministic state tests. A fixed
+100 ms assertion inside `#[gpui::test]` is sensitive to machine load and does not
+measure native rendering performance. Use the consumer project's benchmark or
+profiling tools, record the build mode and workload, and compare against a stated
+baseline. Test observable limits such as bounded work or item counts separately
+when those are part of the component contract.
 
 ## Running Tests
 
@@ -140,7 +126,7 @@ cargo test --features test-support
 ### Advanced Test Execution
 
 ```bash
-# Run tests with iterations for property testing
+# Run Rust tests serially (this does not set GPUI iteration count)
 cargo test -- --test-threads=1
 
 # Run tests matching a pattern
@@ -150,23 +136,14 @@ cargo test test_async
 RUST_BACKTRACE=1 cargo test
 ```
 
-### CI/CD Integration
+Set repeated GPUI runs with `#[gpui::test(iterations = 10)]` as shown in
+[test.md](test.md#property-test-with-iterations). Verify any seed or iteration
+environment overrides against the pinned test runner.
 
-For continuous integration:
+### CI integration
 
-```yaml
-# .github/workflows/test.yml
-name: Tests
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Run tests
-        run: cargo test --features test-support
-```
-
-GPUI's testing framework provides deterministic, fast, and comprehensive testing capabilities that mirror real application behavior while providing the control needed for thorough testing of complex UI and async scenarios.
+Use the consumer project's supported OS, Rust toolchain, and native dependencies.
+Run the headless suite with `cargo test --features test-support`; reserve visible
+app and native input checks for an environment with a display session. Headless
+input dispatch exercises GPUI routing but does not prove AppKit, Windows, or
+Wayland/X11 behavior.

@@ -5,7 +5,10 @@ GPUI provides a comprehensive testing framework that allows you to test UI compo
 
 ### Rules
 
-- If a test does not require windows or rendering, skip `#[gpui::test]` and `TestAppContext` entirely — write a plain Rust test.
+- Use plain Rust tests for logic independent of GPUI. Entity updates, subscriptions,
+  globals, and GPUI tasks still need `#[gpui::test]` and `TestAppContext`, even
+  without a window. Use `VisualTestContext` when the behavior needs a window,
+  rendering, focus, or input dispatch.
 
 ### Gotcha: `use gpui::*` shadows `#[test]`
 

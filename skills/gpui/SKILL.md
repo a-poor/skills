@@ -71,6 +71,11 @@ These checks cover selected recipes. Verify other examples and changed APIs
 against the consumer project's pin; native platform interaction remains a
 separate check.
 
+The source repository's `validation/gpui/check.py` harness extracts
+the marked entity, event, async, timer, deferred-update, and custom text-element
+examples directly from Markdown. Those checks are maintained separately from
+the earlier temporary audit fixtures described above.
+
 ## Extended References
 
 For deep-dive topics, additional reference files are available:
@@ -78,7 +83,7 @@ For deep-dive topics, additional reference files are available:
 **Element trait:**
 - [element-api.md](references/element-api.md) — complete API, hitbox system, event handling
 - [element-patterns.md](references/element-patterns.md) — text, interactive, container, composite patterns
-- [element-examples.md](references/element-examples.md) — full examples: text, interactive, complex elements
+- [element-examples.md](references/element-examples.md) — complete text element and draw test; selection and child-management design notes
 - [element-best-practices.md](references/element-best-practices.md) — performance, state, common pitfalls
 - [element-advanced.md](references/element-advanced.md) — masonry/circular layouts, async updates, virtual lists
 

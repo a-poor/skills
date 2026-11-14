@@ -4,7 +4,7 @@
 
 ## Element Trait Structure
 
-The `Element` trait requires implementing three associated types and five methods:
+The `Element` trait requires implementing two associated types and five methods:
 
 ```rust
 pub trait Element: 'static + IntoElement {

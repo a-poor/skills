@@ -75,6 +75,14 @@ The options and handler snippets were compile-checked on macOS against GPUI
 revision `4c7244790a075e862eeb4e5ccc12d6c8f5da6f7e`. Native interaction checks
 are separate; compilation does not establish the behavior listed below.
 
+A small native probe at that revision was also exercised through macOS app
+automation. Tab reordering kept the window in place, tab-close worked, empty
+chrome double-click zoomed/restored once per double-click, tab double-click did
+not invoke that action, and Window-menu left tiling worked. Empty-chrome drag
+attempts through that automation path did not move the window; the cause remains
+unresolved. First-click behavior in an inactive window and the traffic lights
+were not verified. Keep these checks in the consumer app's native test pass.
+
 ### Platform differences and native verification
 
 - macOS: `WindowControlArea` tags do not control AppKit titlebar dragging at the

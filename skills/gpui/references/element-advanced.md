@@ -2,6 +2,11 @@
 
 **Contents:** [Custom Layout Algorithms](#custom-layout-algorithms) · [Element Composition with Traits](#element-composition-with-traits) · [Async Element Updates](#async-element-updates) · [Element Memoization](#element-memoization) · [Virtual List Pattern](#virtual-list-pattern)
 
+These are design sketches with elided trait parameters and application-specific
+types, not compiled implementations. Begin with the complete
+[SimpleText example](element-examples.md) and verify child-element and callback
+signatures against the consumer's pinned source before adapting a sketch.
+
 ## Custom Layout Algorithms
 
 Implementing custom layout algorithms not supported by GPUI's built-in layouts.

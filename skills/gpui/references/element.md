@@ -11,67 +11,10 @@ Use the low-level `Element` trait when:
 
 ## Quick Start
 
-The `Element` trait provides direct control over three rendering phases:
-
-```rust
-impl Element for MyElement {
-    type RequestLayoutState = MyLayoutState;  // Data passed to later phases
-    type PrepaintState = MyPaintState;        // Data for painting
-
-    fn id(&self) -> Option<ElementId> {
-        Some(self.id.clone())
-    }
-
-    fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
-        None
-    }
-
-    // Phase 1: Calculate sizes and positions
-    fn request_layout(&mut self, .., window: &mut Window, cx: &mut App)
-        -> (LayoutId, Self::RequestLayoutState)
-    {
-        let layout_id = window.request_layout(
-            Style { size: size(px(200.), px(100.)), ..default() },
-            vec![],
-            cx
-        );
-        (layout_id, MyLayoutState { /* ... */ })
-    }
-
-    // Phase 2: Create hitboxes, prepare for painting
-    fn prepaint(&mut self, .., bounds: Bounds<Pixels>, layout: &mut Self::RequestLayoutState,
-                window: &mut Window, cx: &mut App) -> Self::PrepaintState
-    {
-        let hitbox = window.insert_hitbox(bounds, HitboxBehavior::Normal);
-        MyPaintState { hitbox }
-    }
-
-    // Phase 3: Render and handle interactions
-    fn paint(&mut self, .., bounds: Bounds<Pixels>, layout: &mut Self::RequestLayoutState,
-             paint_state: &mut Self::PrepaintState, window: &mut Window, cx: &mut App)
-    {
-        // fill() builds a PaintQuad; chain .corner_radii(px(4.)) for rounded corners,
-        // or use quad(bounds, corner_radii, background, border_widths, border_color, border_style)
-        window.paint_quad(fill(bounds, rgb(0x2d2d30)).corner_radii(px(4.)));
-
-        window.on_mouse_event({
-            let hitbox = paint_state.hitbox.clone();
-            move |event: &MouseDownEvent, phase, window, cx| {
-                if hitbox.is_hovered(window) && phase.bubble() {
-                    // Handle interaction
-                    cx.stop_propagation();
-                }
-            }
-        });
-    }
-}
-
-// Enable element to be used as child
-impl IntoElement for MyElement {
-    type Element = Self;
-    fn into_element(self) -> Self::Element { self }
-}
-```
+Start with the complete [SimpleText implementation and draw test](element-examples.md).
+It implements all trait methods, keeps a mutable `StyledText` across phases, and
+has been compiled and exercised against the stated GPUI pin. Use the
+[API reference](element-api.md) for the full method signatures.
 
 ## Core Concepts
 
@@ -100,7 +43,7 @@ State flows in one direction through associated types, passed as mutable referen
 
 ### Complete API Documentation
 - **API**: See [element-api.md](element-api.md) — associated types, hitbox system, event handling, cursor styles
-- **Examples**: See [element-examples.md](element-examples.md) — text, interactive, complex elements
+- **Examples**: See [element-examples.md](element-examples.md) — compiled text example; selection and child-management design notes
 - **Patterns**: See [element-patterns.md](element-patterns.md) — text, container, interactive, composite, scrollable
 - **Best Practices**: See [element-best-practices.md](element-best-practices.md) — performance, state, common pitfalls
 - **Advanced**: See [element-advanced.md](element-advanced.md) — masonry/circular layouts, memoization, virtual lists

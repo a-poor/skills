@@ -2,6 +2,9 @@
 
 **Contents:** [State Management](#state-management) · [Performance Considerations](#performance-considerations) · [Interaction Handling](#interaction-handling) · [Layout Strategies](#layout-strategies) · [Error Handling](#error-handling) · [Testing Element Implementations](#testing-element-implementations) · [Common Pitfalls](#common-pitfalls) · [Performance Checklist](#performance-checklist)
 
+The abbreviated snippets below illustrate design choices. For a complete,
+compiled implementation and draw test, use [SimpleText](element-examples.md).
+
 ## State Management
 
 ### Using Associated Types Effectively
@@ -54,9 +57,11 @@ paint
 ```
 
 **Don't:**
-- Store state in the element struct that should be in associated types
-- Try to mutate element state in paint phase (use `cx.notify()` to schedule re-render)
-- Pass mutable references across phase boundaries
+- Make rendering itself change persistent application state; mutate the owning
+  entity from an event/update callback and notify it there. The element methods
+  may mutate their own transient rendering state.
+- Retain borrowed context or element references in stored callbacks. Associated
+  state is owned, then passed by mutable reference to subsequent phases.
 
 ## Performance Considerations
 
@@ -315,14 +320,14 @@ fn request_layout(&mut self, .., window: &mut Window, cx: &mut App)
     let mut child_layout_ids = Vec::new();
 
     for child in &mut self.children {
-        let (layout_id, _) = child.request_layout(window, cx);
+        let layout_id = child.request_layout(window, cx);
         child_layout_ids.push(layout_id);
     }
 
     let layout_id = window.request_layout(
         Style {
             flex_direction: FlexDirection::Row,
-            gap: px(8.),
+            gap: size(px(8.), px(8.)).into(),
             size: Size {
                 width: relative(1.0),  // Fill parent width
                 height: auto(),        // Auto height
@@ -341,118 +346,25 @@ fn request_layout(&mut self, .., window: &mut Window, cx: &mut App)
 
 ### Graceful Degradation
 
-Handle errors gracefully, don't panic:
+Handle errors in application-specific loading or shaping operations before
+constructing the element, and provide a fallback when appropriate.
+`Element::request_layout` returns a tuple, not a `Result`; do not match it as
+`Ok`/`Err`.
 
-<!-- illustrative pseudocode; verify signatures against gpui source — Element::request_layout
-(including StyledText's) does not return a Result. The point here is the fallback pattern for
-your own fallible computations, not the exact API shape. -->
+### Defensive bounds checking
 
-```rust
-fn request_layout(&mut self, .., window: &mut Window, cx: &mut App)
-    -> (LayoutId, Option<TextLayout>)
-{
-    // Try to create styled text
-    match StyledText::new(self.text.clone()).request_layout(None, None, window, cx) {
-        Ok((layout_id, text_layout)) => {
-            (layout_id, Some(text_layout))
-        }
-        Err(e) => {
-            // Log error
-            eprintln!("Failed to layout text: {}", e);
-
-            // Fallback to simple text
-            let fallback_text = StyledText::new("(Error loading text)".into());
-            let (layout_id, _) = fallback_text.request_layout(None, None, window, cx);
-            (layout_id, None)
-        }
-    }
-}
-```
-
-### Defensive Bounds Checking
-
-Always validate bounds and indices:
-
-```rust
-fn paint_selection(&self, selection: &Selection, text_layout: &TextLayout, ..) {
-    // Validate selection bounds
-    let start = selection.start.min(self.text.len());
-    let end = selection.end.min(self.text.len());
-
-    if start >= end {
-        return; // Invalid selection
-    }
-
-    let rects = text_layout.rects_for_range(start..end);
-    // Paint selection...
-}
-```
+Validate selection indices against UTF-8 character boundaries, not just byte
+length. Normalize reversed selections, handle empty ranges, and use the shaped
+line geometry for painting. The checked `TextLayout` API has no
+`rects_for_range` method; selection rectangles require application logic.
 
 ## Testing Element Implementations
 
-### Layout Tests
-
-Test that layout calculations are correct:
-
-```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use gpui::TestAppContext;
-
-    #[gpui::test]
-    fn test_element_layout(cx: &mut TestAppContext) {
-        cx.update(|cx| {
-            let mut window = cx.open_window(Default::default(), |_, _| ()).unwrap();
-
-            window.update(cx, |window, cx| {
-                let mut element = MyElement::new();
-                let (layout_id, layout_state) = element.request_layout(
-                    None,
-                    None,
-                    window,
-                    cx
-                );
-
-                // Assert layout properties
-                let bounds = window.layout_bounds(layout_id);
-                assert_eq!(bounds.size.width, px(200.));
-                assert_eq!(bounds.size.height, px(100.));
-            });
-        });
-    }
-}
-```
-
-### Interaction Tests
-
-Test that interactions work correctly:
-
-```rust
-#[gpui::test]
-fn test_element_click(cx: &mut TestAppContext) {
-    cx.update(|cx| {
-        let mut window = cx.open_window(Default::default(), |_, cx| {
-            cx.new(|_| MyElement::new())
-        }).unwrap();
-
-        window.update(cx, |window, cx| {
-            let view = window.root_view().unwrap();
-
-            // Simulate click
-            let position = point(px(10.), px(10.));
-            window.dispatch_event(MouseDownEvent {
-                position,
-                button: MouseButton::Left,
-                modifiers: Modifiers::default(),
-            });
-
-            // Assert element responded
-            view.read(cx).assert_clicked();
-        });
-    });
-}
-```
+Use the [complete headless draw test](element-examples.md#testing-the-rendering-phases)
+to exercise layout, prepaint, and paint before checking final geometry.
+For interactions, draw the control and dispatch input through `VisualTestContext`;
+assert the owning entity's state and event effects. Test native behavior in a
+visible app as described in [test.md](test.md#running-app-and-native-verification).
 
 ## Common Pitfalls
 

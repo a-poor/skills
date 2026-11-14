@@ -4,14 +4,28 @@
 
 ## Testing Patterns
 
+The basic entity, event, async, timer, and deferred-update examples below are
+self-contained test modules. The source repository's `validation/gpui/check.py`
+extracts and executes these marked examples against Zed revision
+`4c7244790a075e862eeb4e5ccc12d6c8f5da6f7e`. Other examples that use application
+types are sketches to adapt to the consumer project.
+
 ### Basic Entity Testing
 
 Test entity creation, updates, and reads:
 
+<!-- gpui-check: entity-test -->
 ```rust
+use gpui::{AppContext, TestAppContext};
+
+#[derive(Default)]
+struct Counter {
+    count: i32,
+}
+
 #[gpui::test]
 fn test_counter_entity(cx: &mut TestAppContext) {
-    let counter = cx.new(|cx| Counter::new(cx));
+    let counter = cx.new(|_| Counter::default());
 
     // Test initial state
     let initial_count = counter.read_with(cx, |counter, _| counter.count);
@@ -30,9 +44,19 @@ fn test_counter_entity(cx: &mut TestAppContext) {
 
 ### Event Testing
 
-Test event emission and handling:
+Keep the subscription alive: dropping it immediately removes the callback. This
+example detaches it for the entity's lifetime; store it when it needs an explicit
+unsubscribe point.
 
+<!-- gpui-check: event-test -->
 ```rust
+use gpui::{AppContext, Context, EventEmitter, TestAppContext};
+
+#[derive(Default)]
+struct MyComponent {
+    received_value: i32,
+}
+
 #[derive(Clone)]
 struct ValueChanged {
     new_value: i32,
@@ -42,16 +66,13 @@ impl EventEmitter<ValueChanged> for MyComponent {}
 
 #[gpui::test]
 fn test_event_emission(cx: &mut TestAppContext) {
-    let component = cx.new(|cx| {
-        let mut comp = MyComponent::default();
-
-        // Subscribe to self
+    let component = cx.new(|cx: &mut Context<MyComponent>| {
         cx.subscribe_self(|this, event: &ValueChanged, cx| {
             this.received_value = event.new_value;
             cx.notify();
-        });
+        }).detach();
 
-        comp
+        MyComponent::default()
     });
 
     // Emit event
@@ -67,7 +88,9 @@ fn test_event_emission(cx: &mut TestAppContext) {
 
 ### Action Testing
 
-Test action dispatching and handling:
+This sketch assumes `MyComponent` implements `Render`, tracks its `focus_handle`,
+and registers an `Increment` action listener that updates `count`. Dispatch through
+the window's focus tree rather than calling the handler directly.
 
 ```rust
 actions!(my_app, [Increment, Decrement]);
@@ -96,36 +119,49 @@ fn test_action_dispatch(cx: &mut TestAppContext) {
 
 ### Async Testing
 
-Test async operations and background tasks:
+Await the task returned by `cx.spawn`. Updating its weak entity is synchronous and
+returns a `Result`; it is not a future. A dropped owner is an expected exit path.
 
+<!-- gpui-check: async-test -->
 ```rust
+use gpui::{AppContext, Context, Task, TestAppContext};
+
+#[derive(Default)]
+struct MyComponent {
+    loading: bool,
+    value: i32,
+}
+
 impl MyComponent {
-    fn load_data(&self, cx: &mut Context<Self>) -> Task<i32> {
+    fn load_data(&self, cx: &mut Context<Self>) -> Task<Option<i32>> {
         cx.spawn(async move |this, cx| {
-            // Simulate async work
-            this.update(cx, |comp, _| comp.loading = true).await;
-            // Return result
-            42
+            this.update(cx, |comp, cx| {
+                comp.loading = true;
+                cx.notify();
+            }).ok()?;
+            Some(42)
         })
     }
 
     fn background_update(&self, cx: &mut Context<Self>) {
         cx.spawn(async move |this, cx| {
             // Background work
-            this.update(cx, |comp, _| {
+            this.update(cx, |comp, cx| {
                 comp.value += 10;
-            }).await;
+                cx.notify();
+            }).ok(); // No update if the owner has been dropped.
         }).detach();
     }
 }
 
 #[gpui::test]
 async fn test_async_operations(cx: &mut TestAppContext) {
-    let component = cx.new(|cx| MyComponent::new(cx));
+    let component = cx.new(|_| MyComponent::default());
 
     // Test awaited task
     let result = component.update(cx, |comp, cx| comp.load_data(cx)).await;
-    assert_eq!(result, 42);
+    assert_eq!(result, Some(42));
+    assert!(component.read_with(cx, |comp, _| comp.loading));
 
     // Test detached task
     component.update(cx, |comp, cx| comp.background_update(cx));
@@ -144,9 +180,21 @@ async fn test_async_operations(cx: &mut TestAppContext) {
 
 ### Timer Testing
 
-Test timer-based operations:
+Start the task so its timer is registered, then advance the test clock explicitly
+and drain newly runnable tasks. At the checked revision, `TestAppContext::run_until_parked`
+does not advance time; `BackgroundExecutor::run_until_parked` has different
+semantics. Do not infer timer behavior from the method name alone.
 
+<!-- gpui-check: timer-test -->
 ```rust
+use gpui::{AppContext, Context, TestAppContext};
+use std::time::Duration;
+
+#[derive(Default)]
+struct MyComponent {
+    action_performed: bool,
+}
+
 impl MyComponent {
     fn delayed_action(&self, cx: &mut Context<Self>) {
         cx.spawn(async move |this, cx| {
@@ -157,22 +205,28 @@ impl MyComponent {
             this.update(cx, |comp, cx| {
                 comp.action_performed = true;
                 cx.notify();
-            }).await;
+            }).ok();
         }).detach();
     }
 }
 
 #[gpui::test]
-async fn test_timers(cx: &mut TestAppContext) {
-    let component = cx.new(|cx| MyComponent::new(cx));
+fn test_timers(cx: &mut TestAppContext) {
+    let component = cx.new(|_| MyComponent::default());
 
     component.update(cx, |comp, cx| comp.delayed_action(cx));
 
-    // Action shouldn't have completed yet
+    // Register the timer without advancing time.
+    cx.run_until_parked();
     let performed = component.read_with(cx, |comp, _| comp.action_performed);
     assert!(!performed);
 
-    // Run until parked (timers complete)
+    // Verify that the action does not happen early.
+    cx.background_executor.advance_clock(Duration::from_millis(99));
+    cx.run_until_parked();
+    assert!(!component.read_with(cx, |comp, _| comp.action_performed));
+
+    cx.background_executor.advance_clock(Duration::from_millis(1));
     cx.run_until_parked();
 
     let performed = component.read_with(cx, |comp, _| comp.action_performed);
@@ -204,122 +258,65 @@ async fn test_external_io(cx: &mut TestAppContext) {
 
 ## Testing Crash-Free State Management (Re-entrancy)
 
-The most dangerous class of GPUI bugs is **entity re-entrancy**: code that tries to update or read an entity while it is already locked in a render/update pass. These bugs are invisible at compile time — they only panic at runtime, typically when the user clicks something in a list or dropdown.
+A re-entrancy panic occurs when a callback reads or updates an entity that is
+already borrowed on the current call stack. It can happen during rendering,
+updates, or user input. Reads of a different, unborrowed entity are valid.
 
-**Key properties of re-entrancy panics:**
-- Triggered by user interaction (click, key press), not during static rendering.
-- `#[should_panic]` only confirms the bug exists — tests must pass *without* panicking.
-- `cx.run_until_parked()` is required after the triggering action to let deferred callbacks (`defer_in`) execute.
+Exercise the real handler or delegate that previously re-entered the owner, and
+assert the resulting state. A `#[should_panic]` test only confirms the failure;
+it does not validate the repair. Use `defer_in` when the operation should run
+after the current effect cycle has released the owner. It is not a blanket
+requirement for nested updates.
 
-### Pattern: Drive `confirm` / `cancel` through the real delegate
+### Deferred update example
 
+This test checks both sides of the scheduling boundary: selection stays unchanged
+inside the current update and changes after the deferred callback runs.
+`defer_in` is flushed with app effects; it does not inherently require an executor
+yield. Drain tasks when the actual interaction also schedules async work.
+
+<!-- gpui-check: deferred-test -->
 ```rust
-#[gpui::test]
-fn test_confirm_does_not_panic(cx: &mut TestAppContext) {
-    // Build the component state the same way the real app does.
-    let state = cx.new(|cx| {
-        SelectState::new(MyDelegate::default(), None, &mut cx.window_handle(), cx)
-    });
+use gpui::{Context, IntoElement, Render, TestAppContext, Window, div};
 
-    // Simulate the user clicking the first item — this exercises on_confirm
-    // and its deferred callback, which is where re-entrancy bugs hide.
-    state.update(cx, |this, cx| {
-        this.state.list.update(cx, |list, cx| {
-            list.delegate_mut().set_selected_index(Some(IndexPath::new(0)), window, cx);
-            list.delegate_mut().confirm(false, window, cx);
-        });
-    });
-
-    // Let defer_in callbacks execute — required to trigger the crash.
-    cx.run_until_parked();
-
-    // If we reach here without panicking, the re-entrancy is fixed.
-    let selected = state.read_with(cx, |s, _| s.selected_value().cloned());
-    assert!(selected.is_some());
-}
-```
-
-### Pattern: Verify `on_will_change` and `on_confirm` hooks are called correctly
-
-Use a recording delegate to assert that hooks fire with the right arguments and in the right order:
-
-```rust
 #[derive(Default)]
-struct RecordingDelegate {
-    items: Vec<MyItem>,
-    will_change_calls: Vec<Vec<IndexPath>>,
-    confirm_calls: Vec<Vec<IndexPath>>,
+struct Selection {
+    selected: Option<usize>,
 }
 
-impl SearchableListDelegate for RecordingDelegate {
-    // … required impls …
-
-    fn on_will_change(
-        &mut self,
-        change: &mut SearchableListChange<Self>,
-        _current: &[(IndexPath, Self::Item)],
-    ) {
-        self.will_change_calls.push(
-            change.select_queue.iter().map(|(ix, _)| *ix).collect()
-        );
+impl Selection {
+    fn confirm(&mut self, index: usize, window: &Window, cx: &mut Context<Self>) {
+        cx.defer_in(window, move |this, _window, cx| {
+            this.selected = Some(index);
+            cx.notify();
+        });
     }
+}
 
-    fn on_confirm(&mut self, final_selection: &[(IndexPath, Self::Item)]) {
-        self.confirm_calls.push(
-            final_selection.iter().map(|(ix, _)| *ix).collect()
-        );
+impl Render for Selection {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        div()
     }
 }
 
 #[gpui::test]
-fn test_hooks_fire_in_correct_order(cx: &mut TestAppContext) {
-    let state = cx.new(|cx| SelectState::new(RecordingDelegate::with_items(3), None, window, cx));
+fn deferred_confirmation_updates_after_borrow_ends(cx: &mut TestAppContext) {
+    let window = cx.add_window(|_, _| Selection::default());
+    window.update(cx, |view, window, cx| {
+        view.confirm(2, window, cx);
+        assert_eq!(view.selected, None);
+    }).unwrap();
 
-    // Simulate confirm on item 0
-    state.update(cx, |this, cx| {
-        // … trigger confirm …
-    });
-    cx.run_until_parked();
-
-    state.read_with(cx, |s, cx| {
-        let delegate = s.state.list.read(cx).delegate().delegate;
-        assert_eq!(delegate.will_change_calls.len(), 1);
-        assert_eq!(delegate.confirm_calls.len(), 1);
-        assert_eq!(delegate.confirm_calls[0], vec![IndexPath::new(0)]);
-    });
+    let selected = window.read_with(cx, |view, _| view.selected).unwrap();
+    assert_eq!(selected, Some(2));
 }
 ```
 
-### Pattern: Rapid multiple confirms (snapshot consistency)
-
-```rust
-#[gpui::test]
-fn test_rapid_confirms_keep_consistent_snapshot(cx: &mut TestAppContext) {
-    let state = cx.new(|cx| SelectState::new(MyDelegate::with_items(5), None, window, cx));
-
-    for i in 0..5 {
-        state.update(cx, |this, cx| {
-            // trigger confirm on item i
-        });
-        cx.run_until_parked();
-
-        state.read_with(cx, |s, cx| {
-            let snapshot = s.state.list.read(cx).delegate().selection_snapshot.clone();
-            let selection = s.state.selection.clone();
-            assert_eq!(snapshot, selection, "snapshot out of sync after confirm {i}");
-        });
-    }
-}
-```
-
-### Checklist: What to test for each component that uses `defer_in`
-
-- [ ] `confirm` path: no panic, correct final selection, snapshot matches selection
-- [ ] `cancel` path: no panic, selection unchanged, popover closed
-- [ ] `on_will_change` veto: selection not changed, `on_confirm` not called
-- [ ] `on_will_change` mutating the change: final selection reflects delegate's modification
-- [ ] Rapid consecutive confirms: each one leaves snapshot consistent with selection
-- [ ] `render_item` never panics even when called immediately after a mutation
+For application-specific list or dropdown delegates, also test confirmation,
+cancellation, veto/selection transformation hooks, and rapid repeated changes.
+Assert callback order and snapshot contents, not just the absence of a panic.
+Create window-dependent controls through a window context; an entity constructor
+alone does not supply a `Window`.
 
 ## Property Testing
 
@@ -348,7 +345,9 @@ fn test_counter_random_operations(cx: &mut TestAppContext, mut rng: StdRng) {
 
 ## Distributed Systems Testing
 
-Test multiple app contexts communicating:
+Application-specific sketch: inject a shared fake transport into both components,
+then test message delivery between app contexts. GPUI does not supply the
+`send_message`/`receive_messages` methods below.
 
 ```rust
 #[derive(Clone)]

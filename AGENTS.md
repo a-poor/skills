@@ -7,21 +7,26 @@ lives in `skills/<skill-name>/`, with a required `SKILL.md` entry point and opti
 `references/` documents for detailed topics. Examples include `gpui`,
 `automerge-rust`, `ratatui`, and `improve-skill`. `README.md` indexes the available
 skills; update it when adding or renaming one. `LICENSE.md` contains the license.
-There are no application source, executable test, or asset directories.
+Repository maintenance checks live in `tools/` and `validation/gpui/`. The latter
+extracts selected Markdown recipes into a temporary Rust consumer for testing;
+it is not an application shipped with the skills.
 
 Keep activation guidance and core workflows in `SKILL.md`. Put longer API notes,
 recipes, and examples in focused reference files, linked from the entry point.
 
 ## Build, Test, and Development Commands
 
-There is no repository build, development server, package manifest, or configured
-formatter/linter. Run these checks from the repository root:
+There is no application build, development server, or configured formatter/linter.
+Run these checks from the repository root:
 
 - `rg --files skills` — inventory skill entry points and reference documents.
 - `rg -n 'pattern' skills` — find related guidance before changing shared concepts.
 - `git diff --check` — detect whitespace errors in tracked changes.
 - `git diff --stat` and `git diff` — review the scope and content of tracked edits.
 - `git status --short` — identify new files that ordinary diffs omit.
+- `ruby tools/check-skills.rb` — validate frontmatter, fences, and local file links.
+- `python3 validation/gpui/check.py` — compile and run the marked GPUI recipes;
+  see `validation/gpui/README.md` for the required source pin and prerequisites.
 
 ## Coding Style & Naming Conventions
 
@@ -36,10 +41,11 @@ surrounding formatting; use four-space indentation in Rust examples.
 
 ## Testing Guidelines
 
-No automated test framework, coverage threshold, or executable test naming
-convention is configured. Files such as `references/test.md` document testing in
-consumer projects. Before submitting, check frontmatter syntax, relative link
-targets, code fences, and consistency between entry points and references. For API
+The GPUI harness covers only its explicitly marked recipes; there is no coverage
+threshold or whole-repository API test suite. Files such as `references/test.md`
+document testing in consumer projects. Before submitting, check frontmatter
+syntax, relative link targets, code fences, and consistency between entry points
+and references. For API
 changes, verify examples against the target project's pinned dependencies or
 upstream documentation, and state which examples were actually exercised.
 

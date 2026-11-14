@@ -9,3 +9,11 @@ A central place for me to store some reusable skills.
 - [ratatui](./skills/ratatui/SKILL.md): Skill for working building TUIs in Rust with [Ratatui](https://github.com/ratatui/ratatui)
 - [smart-brevity](./skills/smart-brevity/SKILL.md): Skill for writing like Axios
 - [improve-skill](./skills/improve-skill/SKILL.md): Skill for auditing how agent skills are used across local Claude Code, Codex, and OpenCode histories
+
+## Validation
+
+Run `ruby tools/check-skills.rb` for skill frontmatter, balanced fences, and local
+file links, then `git diff --check` for whitespace. Link fragments and API
+correctness require separate review. The [GPUI recipe harness](validation/gpui/README.md)
+compiles and runs selected examples directly from the Markdown against a stated
+Zed revision.
