@@ -7,7 +7,9 @@ description: Use this skill to draft or restructure workplace communications —
 
 Smart Brevity is a writing method built on one observation: readers skim. They give you seconds, not minutes. The method's answer is to put the most important thing first, say it in muscular plain words, tell readers why they should care, and stop.
 
-The goal is **short, not shallow**. You are not dumbing anything down or cutting substance — you are cutting the packaging around the substance. A good Smart Brevity rewrite is typically ~40% shorter than the original and loses nothing the reader needed.
+The goal is **short, not shallow**. Cut packaging while preserving the substance
+the reader needs. Shorten as much as the material allows; a percentage reduction
+is not a reason to drop a fact, qualification, or commitment.
 
 Write like you'd talk to a smart, busy friend at a bar: direct, human, specific. If you wouldn't say the word out loud, don't write it.
 
@@ -40,7 +42,7 @@ Rules of thumb:
 - **Short paragraphs.** 1–2 sentences. Never bury the point in paragraph three.
 - **Strong, plain words.** Prefer the one-syllable word: "use" not "utilize," "help" not "facilitate," "start" not "commence," "buy" not "purchase."
 - **Active voice, active verbs.** "The board killed the deal," not "the deal was not approved by the board."
-- **Kill hedges.** "Could," "may," "might," "somewhat," "arguably" are fog. Either you know it or you cut it. (Keep a hedge only when uncertainty *is* the news.)
+- **Cut filler, preserve uncertainty.** Remove empty qualifiers, but retain "may," "likely," ranges, and conditions when they convey the source's actual confidence. A possible delay must not become a confirmed delay just to make the sentence punchier.
 - **Kill throat-clearing.** Delete openers like "I hope this finds you well," "I wanted to reach out," "As you may know," "It's worth noting that." Start with the point.
 - **Numbers over adjectives.** "Revenue fell 22%" beats "revenue fell sharply."
 - **One big idea per piece.** If you have two big ideas, write two pieces (or lead with one and bullet the other).
@@ -67,24 +69,30 @@ Smart Brevity is principles first, format second. The full axiom treatment fits 
 
 When rewriting someone's existing draft, keep their facts, voice, and any required content — Smart Brevity changes the delivery, not the substance or the author's personality.
 
+Do not invent dates, causes, owners, decisions, or next steps. Keep tentative
+estimates tentative. If a missing fact is essential, ask for it; otherwise omit
+the unsupported detail. Label proposed actions as suggestions rather than
+presenting them as existing commitments.
+
 ## Example
 
-**Before** (an internal update, 118 words):
+**Before** (an internal update):
 
 > Hi everyone, I hope you all had a great weekend. I wanted to give you a quick update on where things stand with the Meridian project. As you may be aware, we have been working closely with the vendor over the past several weeks to try to resolve the integration issues that were identified during testing. Unfortunately, despite everyone's best efforts, it appears that we may not be able to hit the September 15 launch date that we had previously communicated to stakeholders. We are currently thinking that a more realistic target would likely be sometime in early October. We will keep you posted as we learn more and appreciate your patience.
 
-**After** (Smart Brevity, 55 words):
+**After** (Smart Brevity):
 
-> **Meridian launch slips to October**
+> **Meridian’s September launch is at risk**
 >
-> Meridian will miss its Sept. 15 launch — new target: the week of Oct. 6.
+> Meridian may miss its Sept. 15 launch. Early October now looks more realistic.
 >
-> **Why it matters:** Stakeholders were promised September. We need to reset expectations this week, before they hear it secondhand.
+> **Why it matters:** Stakeholders were told Sept. 15; a delay would change that expectation.
 >
-> - **The cause:** Vendor integration bugs found in testing.
-> - **What's next:** Fix ETA Friday; revised timeline to stakeholders Monday.
+> **What's next:** We're working with the vendor to resolve integration issues found in testing and will share updates as we learn more.
 
-Note what happened: the news moved from sentence four to the headline, hedges ("may not," "likely," "sometime") became a date, and the reader knows the stakes and the plan in one glance.
+The risk moves to the headline. The rewrite keeps the tentative timing and the
+existing commitment to share updates, without inventing a launch date or a
+reporting deadline.
 
 ## Self-check before delivering
 
@@ -94,6 +102,7 @@ Run the draft through this list — fix anything that fails:
 2. Would the reader know why they should care within the first 3 lines?
 3. Is the headline/subject ≤ ~6 words and specific?
 4. Can a reader stop at any point and still have the essentials?
-5. Did you cut every hedge, throat-clear, and multi-syllable word with a shorter twin?
+5. Did you cut filler and throat-clearing while preserving meaningful uncertainty and conditions?
 6. Is anything bolded that a skimmer doesn't need? Is anything a skimmer needs not bolded?
-7. Is it roughly 40% shorter than a first-draft version would be — without losing a fact the reader needed?
+7. Is it as concise as the task allows, without losing a fact the reader needs?
+8. Can every factual claim, date, and commitment be traced to the source or user-provided context?
