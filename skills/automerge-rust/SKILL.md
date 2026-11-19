@@ -18,15 +18,14 @@ Automerge is a CRDT library: a JSON-like document (nested maps, lists, text,
 scalars) that multiple actors can modify concurrently and merge deterministically,
 with full history. The Rust crates are the canonical implementation.
 
-This skill targets these versions (released together 2026-08; they move in lockstep,
-so pin compatible pairs):
+These published versions share the Automerge 0.12 document types:
 
 | Crate | Version | Role |
 |---|---|---|
-| `automerge` | 0.11 | Core: document model, transactions, save/load, sync protocol, patches |
-| `autosurgeon` | 0.13 | Derive `Reconcile`/`Hydrate` — map typed Rust structs ↔ documents |
-| `samod` | 0.13 | automerge-repo in Rust: `Repo`/`DocHandle`, storage, websocket sync, JS-interoperable |
-| `automerge-test` | 0.11 | Dev-dependency: `assert_doc!`/`map!`/`list!` for asserting doc shapes incl. conflicts |
+| `automerge` | 0.12 | Core: document model, transactions, save/load, sync protocol, patches |
+| `autosurgeon` | 0.14 | Derive `Reconcile`/`Hydrate` — map typed Rust structs ↔ documents |
+| `samod` | 0.16 | automerge-repo in Rust: `Repo`/`DocHandle`, storage, websocket sync, JS-interoperable |
+| `automerge-test` | 0.12 | Dev-dependency: `assert_doc!`/`map!`/`list!` for asserting doc shapes incl. conflicts |
 
 Version pairing history: autosurgeon 0.13↔automerge 0.11, 0.12↔0.10, 0.11↔0.8.
 
@@ -61,12 +60,12 @@ dependency with the range autosurgeon resolves to.
 
 ```toml
 [dependencies]
-automerge = "0.11"
-autosurgeon = "0.13"            # add features = ["uuid"] for Uuid fields
-# samod = { version = "0.13", features = ["tokio", "tungstenite"] }  # repo layer, if needed
+automerge = "0.12"
+autosurgeon = "0.14"            # add features = ["uuid"] for Uuid fields
+# samod = { version = "0.16", features = ["tokio", "tungstenite"] }  # repo layer, if needed
 
 [dev-dependencies]
-automerge-test = "0.11"
+automerge-test = "0.12"
 ```
 
 `automerge` features that matter: text indices default to **Unicode code points**.
@@ -206,6 +205,12 @@ fine and works in single-user testing, then loses data on merge:
     autosurgeon an *absent* property fails to hydrate even into `Option<T>` — use
     `#[autosurgeon(missing = "Default::default")]` or `MaybeMissing<T>` for fields
     added after documents already exist (schema evolution).
+
+## Attributing changes to a person
+
+In 0.12, set an `Author` before editing to associate a stable application user ID
+with changes across devices. Each concurrent writer still needs its own actor.
+See the [author lookup example](references/core-api.md#change-authorship-in-012).
 
 ## Persistence in one paragraph
 

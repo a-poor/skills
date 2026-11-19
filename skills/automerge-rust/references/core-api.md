@@ -1,8 +1,30 @@
-# `automerge` crate reference (v0.11)
+# `automerge` crate reference (v0.11 and v0.12)
 
-Verified against the automerge repo at crate version 0.11.0. File paths below are
+The original reference was checked against 0.11.0. The authorship example targets 0.12.0. File paths below are
 relative to `rust/automerge/` in https://github.com/automerge/automerge — consult
 them (or https://docs.rs/automerge) when you need to go deeper.
+
+## Change authorship in 0.12
+
+Set an opaque application identifier before the first edit. Save and load the
+document to look up the recorded author of a historical actor:
+
+```rust
+use automerge::{Author, AutoCommit, ROOT, transaction::Transactable};
+
+let author = Author::from(b"user-42".to_vec());
+let mut doc = AutoCommit::new().with_author(Some(author.clone()));
+doc.put(ROOT, "title", "Draft")?;
+let actor = doc.get_actor().clone();
+let loaded = AutoCommit::load(&doc.save())?;
+assert_eq!(loaded.get_author_for_actor(&actor), Some(author));
+```
+
+`get_author()` reads the current author. `get_authors()` lists recorded authors
+and `get_actors_for_author` finds the actors associated with one author.
+Use `set_author(Some(author))` when switching writers or `set_author(None)` to
+clear attribution for subsequent edits. Older changes may have no author.
+Authenticate the user separately before trusting an attribution.
 
 ## Contents
 

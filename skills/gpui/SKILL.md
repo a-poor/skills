@@ -10,14 +10,21 @@ description: >-
 
 ## Project setup
 
-Depend on gpui via the Zed git repo. `gpui_platform` ships with **no default features**, so the
+Declare both crates directly in `Cargo.toml`. Import UI types such as `Render` and `App`
+from `gpui` and create the application with `gpui_platform`. Writing the entries explicitly
+avoids ambiguous package discovery with `cargo add --git`. Keep both revisions identical. `gpui_platform` ships with **no default features**, so the
 platform features must be enabled explicitly. `font-kit` enables the macOS text system — without
 it the app runs but renders no text. `wayland` and `x11` enable the Linux backends (no-ops on
 macOS, keep them for portability):
 
 ```toml
 [dependencies]
-gpui_platform = { git = "https://github.com/zed-industries/zed.git", features = ["font-kit", "wayland", "x11"] }
+gpui = { git = "https://github.com/zed-industries/zed.git", rev = "4c7244790a075e862eeb4e5ccc12d6c8f5da6f7e" }
+gpui_platform = { git = "https://github.com/zed-industries/zed.git", rev = "4c7244790a075e862eeb4e5ccc12d6c8f5da6f7e", features = ["font-kit", "wayland", "x11"] }
+
+# This Zed revision uses the fork's task metadata API.
+[patch.crates-io]
+async-task = { git = "https://github.com/smol-rs/async-task.git", rev = "b4486cd71e4e94fbda54ce6302444de14f4d190e" }
 ```
 
 ## Navigation

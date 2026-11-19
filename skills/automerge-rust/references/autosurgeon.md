@@ -3,6 +3,10 @@
 Verified against autosurgeon v0.13.0 source (pairs with automerge 0.11). Repo:
 https://github.com/automerge/autosurgeon · docs: https://docs.rs/autosurgeon
 
+For Automerge 0.12 use autosurgeon 0.14 and samod 0.16. Their published
+manifests depend on Automerge 0.12. The examples below retain their original
+verification versions. See the [current dependency set](../SKILL.md#setup).
+
 ## Contents
 
 1. [What autosurgeon is](#1-what-autosurgeon-is)

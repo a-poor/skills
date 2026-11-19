@@ -1,8 +1,10 @@
 # Sync, persistence, and the ecosystem
 
 Covers the `automerge::sync` protocol, storage patterns, the `samod` repo layer,
-and the crate landscape. Verified against automerge 0.11.0 and samod 0.13.0
-(2026-08).
+and the crate landscape. The two-peer sync loop below was exercised on Automerge
+0.12.0. The samod examples were checked against samod 0.13.0 and Automerge
+0.11.0. For Automerge 0.12, samod 0.16 declares a compatible dependency.
+See the [current dependency set](../SKILL.md#setup).
 
 ## Contents
 

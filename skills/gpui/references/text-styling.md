@@ -65,3 +65,37 @@ links via `color` + `underline: UnderlineStyle`. Styles flow correctly through w
 Implement `AssetSource` (`load`/`list`) over an embedded bundle (e.g. rust-embed) and install it with
 `gpui_platform::application().with_assets(Assets)` — `svg().path("icons/x.svg")` paths resolve through it. Path
 prefixes must match the embed's folder structure exactly; a wrong prefix fails silently (blank icon).
+
+Enable the rust-embed feature that supports path filters:
+
+```toml
+[dependencies]
+rust-embed = { version = "8", features = ["include-exclude"] }
+```
+
+Keep the vendor tree under `assets/` and select the files the app uses. Paths in
+the filters and in GPUI lookups are relative to that directory.
+
+```rust
+use rust_embed::RustEmbed;
+
+#[derive(RustEmbed)]
+#[folder = "assets/"]
+#[include = "fonts/Geist/Geist-{Regular,Bold}.ttf"]
+#[include = "icons/regular/{plus,x}.svg"]
+struct Assets;
+
+#[test]
+fn bundled_ui_assets() {
+    let mut paths: Vec<_> = Assets::iter().collect();
+    paths.sort();
+    assert_eq!(paths, [
+        "fonts/Geist/Geist-Bold.ttf", "fonts/Geist/Geist-Regular.ttf",
+        "icons/regular/plus.svg", "icons/regular/x.svg",
+    ]);
+}
+```
+
+The filters apply to debug disk reads and release embedding. Run the test in
+both profiles. Checking names catches missing files even when the count stays
+the same. Register bundled fonts with the text system before selecting their family.
