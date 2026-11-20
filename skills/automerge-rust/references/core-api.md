@@ -6,24 +6,32 @@ them (or https://docs.rs/automerge) when you need to go deeper.
 
 ## Change authorship in 0.12
 
-Set an opaque application identifier before the first edit. Save and load the
-document to look up the recorded author of a historical actor:
+Use a stable application identifier for each author. A writer who signs in
+after an anonymous edit has two actors in the saved document:
 
 ```rust
 use automerge::{Author, AutoCommit, ROOT, transaction::Transactable};
 
 let author = Author::from(b"user-42".to_vec());
-let mut doc = AutoCommit::new().with_author(Some(author.clone()));
+let mut doc = AutoCommit::new();
 doc.put(ROOT, "title", "Draft")?;
+let anonymous = doc.get_actor().clone();
+doc.set_author(Some(author.clone()));
+doc.put(ROOT, "title", "Published")?;
 let actor = doc.get_actor().clone();
+assert_ne!(anonymous, actor);
 let loaded = AutoCommit::load(&doc.save())?;
+assert_eq!(loaded.get_author_for_actor(&anonymous), None);
 assert_eq!(loaded.get_author_for_actor(&actor), Some(author));
 ```
 
 `get_author()` reads the current author. `get_authors()` lists recorded authors
 and `get_actors_for_author` finds the actors associated with one author.
 Use `set_author(Some(author))` when switching writers or `set_author(None)` to
-clear attribution for subsequent edits. Older changes may have no author.
+clear attribution for subsequent edits. Changing the author selects a fresh actor ID.
+Setting the same author again preserves the actor. Earlier edits keep their original
+attribution, so signing in leaves anonymous edits unattributed. To attribute all edits
+from the start, initialize the document with `with_author(Some(author))`.
 Authenticate the user separately before trusting an attribution.
 
 ## Contents
@@ -94,7 +102,7 @@ pub enum Prop { Map(String), Seq(usize) }   // From<&str>, From<String>, From<us
 
 pub enum Value<'a> { Object(ObjType), Scalar(Cow<'a, ScalarValue>) }
 // helpers: Value::str/int/uint/f64/counter/timestamp/bytes/map/list/text,
-// .is_object(), .to_str(), .to_i64(), .to_scalar(), .to_objtype(), .into_owned()
+// .is_object(), .as_str(), .as_i64(), .as_scalar(), .as_objtype(), .into_owned()
 
 pub enum ScalarValue {
     Bytes(Vec<u8>), Str(SmolStr), Int(i64), Uint(u64), F64(f64),

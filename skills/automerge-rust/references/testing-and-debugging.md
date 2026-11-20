@@ -88,7 +88,7 @@ left.merge(&mut right)?;
 let mut values: Vec<String> = left
     .get_all(ROOT, "status")?
     .into_iter()
-    .filter_map(|(value, _)| value.to_str().map(str::to_owned))
+    .filter_map(|(value, _)| value.as_str().map(str::to_owned))
     .collect();
 values.sort();
 assert_eq!(values, ["blocked", "ready"]);

@@ -1,9 +1,8 @@
 # Rich text: marks, spans, blocks
 
-Covers automerge 0.11's rich-text layer (the Peritext model): inline formatting
+Covers automerge 0.12's rich-text layer (the Peritext model): inline formatting
 via **marks**, structured documents via **block markers**, rendering via
-**spans**, and bulk editing via **update_spans**. All APIs and behaviors verified
-against source and tests; every example compiles and runs against automerge 0.11.
+**spans**, and bulk editing via **update_spans**. The worked examples were exercised on 0.12.0. Signature blocks summarize the API.
 Items that are JS-ecosystem conventions rather than Rust API are marked
 **[convention]**.
 
@@ -97,7 +96,7 @@ fn get_marks<O>(&self, obj: O, index: usize, heads: Option<&[ChangeHash]>)
     -> Result<MarkSet, _>;                                            // marks active at ONE index
 ```
 
-`MarkSet` public API in 0.11: `iter() -> (&str, &ScalarValue)`, `num_marks()`,
+`MarkSet` public API in 0.12: `iter() -> (&str, &ScalarValue)`, `num_marks()`,
 `len()`, `is_empty()`, `non_deleted_marks()` (a `PartialEq` view that ignores
 Null tombstones), and `FromIterator<(String, ScalarValue)>` for building one by
 hand (`without_unmarks`/`insert` are crate-private — don't copy docs.rs-era code
@@ -231,6 +230,23 @@ for span in doc.spans(&text)? {
 doc.join_block(&text, 12)?;   // delete the marker: the two blocks merge
 ```
 
+Keep the object ID from `split_block` when tracking a marker across edits.
+The first entry from `parents(&marker)` identifies its immediate parent and
+current position. Check visibility before using that position. For example,
+inserting two characters before a marker moves it from index zero to two:
+
+```rust
+let mut doc = AutoCommit::new();
+let text = doc.put_object(ROOT, "text", ObjType::Text)?;
+let marker = doc.split_block(&text, 0)?;
+doc.splice_text(&text, 0, 0, "ab")?;
+
+let parent = doc.parents(&marker)?.next().expect("marker has a parent");
+assert!(parent.visible);
+assert_eq!(parent.obj, text);
+assert_eq!(parent.prop, automerge::Prop::Seq(2));
+```
+
 Caveat (a FIXME in the source): `join_block` does not verify the element at
 `index` is actually a block marker — it is effectively a sequence delete, so a
 wrong index silently deletes a text unit instead.
@@ -298,7 +314,7 @@ missing, using the per-mark/default expand from the config.
   `PatchAction::Insert` whose element is a `Value::Object(ObjType::Map)`, then
   normal map patches inside the block (the patch `path` includes
   `(text_id, Prop::Seq(index))`).
-- **Do not feed mark patches into `hydrate::Value::apply_patches`**: in 0.11
+- **Do not feed mark patches into `hydrate::Value::apply_patches`**: in 0.12
   `hydrate::Text`'s handler for `PatchAction::Mark` is an unimplemented `todo!()`
   and will **panic**. Maintain your own styled view from spans/patches; hydrated
   text also flattens block markers to `\u{fffc}` and ignores patches inside
@@ -331,7 +347,7 @@ All verified by tests or by fork/merge execution:
    Lists error with `InvalidOp`, despite doc comments saying "sequence").
 4. `marks_at` is marks *at heads* (historical), not *at an index* — the
    positional query is `get_marks(obj, index, heads)`.
-5. `MarkSet::without_unmarks`/`insert` are private in 0.11 — build with
+5. `MarkSet::without_unmarks`/`insert` are private in 0.12 — build with
    `FromIterator`, filter Null values via `non_deleted_marks()`.
 6. `join_block` doesn't validate its target is a block marker.
 7. `hydrate::Text` panics (`todo!()`) on `PatchAction::Mark` — never route rich
@@ -344,7 +360,7 @@ All verified by tests or by fork/merge execution:
    UTF-8 requirement — one more reason rich text and autosurgeon don't mix).
 9. `text()` interleaves `\u{fffc}` for every marker and `length()` counts them —
    account for markers when mapping editor coordinates to document indices.
-10. 0.11 rejects (at load) documents whose mark-end ops precede their starts
+10. 0.12 rejects (at load) documents whose mark-end ops precede their starts
     (produced by old bugs); `Automerge::rescue(&bytes)` recovers the current
     value of such documents as a `hydrate::Value`.
 11. autosurgeon: zero support for marks/blocks/spans; its `Text` uses
