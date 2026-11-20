@@ -247,6 +247,32 @@ assert_eq!(parent.obj, text);
 assert_eq!(parent.prop, automerge::Prop::Seq(2));
 ```
 
+To recover marker IDs after a load or merge, walk the spans and look up each
+block at its current index. `Span::Block` carries the attributes. The second
+value returned by `get` for the map is the same object ID that `split_block`
+returned to its creator. This example uses Unicode code-point indexing:
+
+```rust
+let mut index = 0;
+let mut marker_ids = Vec::new();
+for span in doc.spans(&text)? {
+    match span {
+        Span::Text { text: run, .. } => index += run.chars().count(),
+        Span::Block(_) => {
+            if let Some((automerge::Value::Object(ObjType::Map), id)) = doc.get(&text, index)? {
+                marker_ids.push(id);
+            }
+            index += 1;
+        }
+    }
+}
+```
+
+A literal U+FFFC typed or pasted into the document appears in a text span.
+Scanning `doc.text()` for that character would mistake it for a marker.
+For other encodings, advance in the document's index units. With UTF-8 indexing,
+for example, use `run.len()` for text and advance three bytes for each marker.
+
 Caveat (a FIXME in the source): `join_block` does not verify the element at
 `index` is actually a block marker — it is effectively a sequence delete, so a
 wrong index silently deletes a text unit instead.

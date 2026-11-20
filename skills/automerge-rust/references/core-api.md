@@ -360,6 +360,10 @@ and the rich-text sharp edges are covered in depth in
 
 ## 5. Save / load / fork / merge / actor IDs
 
+In 0.12, `AutoCommit::load(&[])` succeeds with an empty document. If your
+application expects a particular document type, validate its required root
+fields or schema identifier after loading.
+
 ```rust
 // Whole-document (compact, compressed, deduplicated) format:
 let bytes: Vec<u8> = doc.save();                 // AutoCommit: &mut self (commits first)
