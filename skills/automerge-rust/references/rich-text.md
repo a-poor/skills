@@ -96,6 +96,11 @@ fn get_marks<O>(&self, obj: O, index: usize, heads: Option<&[ChangeHash]>)
     -> Result<MarkSet, _>;                                            // marks active at ONE index
 ```
 
+In 0.12.0, `get_marks` advances a marks iterator to the requested index.
+A lookup near the end can scan most of a long text object. For frequent caret
+queries, read from a styled view kept current with patches. For an insertion,
+`PatchAction::SpliceText.marks` already reports the inherited marks.
+
 `MarkSet` public API in 0.12: `iter() -> (&str, &ScalarValue)`, `num_marks()`,
 `len()`, `is_empty()`, `non_deleted_marks()` (a `PartialEq` view that ignores
 Null tombstones), and `FromIterator<(String, ScalarValue)>` for building one by
@@ -372,7 +377,7 @@ All verified by tests or by fork/merge execution:
 3. `mark`/`unmark`/`split_block`/`spans` work only on `ObjType::Text` (marks on
    Lists error with `InvalidOp`, despite doc comments saying "sequence").
 4. `marks_at` is marks *at heads* (historical), not *at an index* — the
-   positional query is `get_marks(obj, index, heads)`.
+   positional query is `get_marks(obj, index, heads)`. Budget for the scan described in §1.
 5. `MarkSet::without_unmarks`/`insert` are private in 0.12 — build with
    `FromIterator`, filter Null values via `non_deleted_marks()`.
 6. `join_block` doesn't validate its target is a block marker.

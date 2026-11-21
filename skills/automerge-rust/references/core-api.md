@@ -334,6 +334,17 @@ doc.splice_text(&text, 2, 0, "more")?;
 let new_idx = doc.get_cursor_position(&text, &cursor, None)?;
 ```
 
+**Deleted trailing item (0.12.0).** Resolving a cursor on the former last item
+of a text or list with current heads (`None`) can panic inside a debug assertion.
+This affects both movement policies. If it blocks development, the reported
+workaround is to disable assertions just for Automerge in the workspace root
+manifest. Recheck when upgrading. [Issue #11](https://github.com/a-poor/skills/issues/11)
+
+```toml
+[profile.dev.package.automerge]
+debug-assertions = false
+```
+
 **Marks / rich text** (Peritext model):
 
 ```rust
@@ -513,7 +524,10 @@ doc.update_diff_cursor();
 ```
 
 The diff cursor starts inactive; call `doc.update_diff_cursor()` once after loading
-to begin indexing, then `diff_incremental()` after each batch of changes.
+to begin indexing, then call `diff_incremental()` after each batch of changes.
+The call commits any pending local transaction before producing patches. Group
+edits that should form one change before reading the diff. For measured costs
+of text edits and marker-map patches, see the [editor guide](editor-integration.md#4-remote-loop-patches--editor).
 
 **b) Explicit `PatchLog`** (works on `Automerge`, sync, load, merge):
 

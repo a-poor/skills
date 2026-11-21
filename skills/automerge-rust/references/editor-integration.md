@@ -55,7 +55,8 @@ On each editor transaction (syncPlugin.ts:52-144):
      `splice_text(obj, pos, del, text)`. Then **reconcile marks**: automerge
      gives inserted text the marks implied by neighbors' expand rules, which can
      differ from editor intent (stored marks toggled at the caret) — read
-     `get_marks(obj, index, None)` over the inserted range and issue corrective
+     the inherited marks from the insertion patch (or query `get_marks` for
+     an occasional lookup) and issue corrective
      `mark`/`unmark` calls (pmToAm.ts:238-286).
    - **Mark add/remove**: batch consecutive add-mark steps (editors emit one per
      text node!) and coalesce adjacent equal `(name, value, expand)` ranges —
@@ -131,6 +132,19 @@ encoding and use it on both sides — see the rich-text.md encoding notes).
 Input: `Vec<Patch>` from a merge, sync receive, or another view of the same doc
 (`diff_incremental()`, a `PatchLog`, or `diff(&before, &after)`).
 
+For a long text object, build the styled view once with `spans()`, then call
+`update_diff_cursor()` at that same document state. Apply each subsequent
+`diff_incremental()` batch in order to keep the view current across local and
+remote edits. Rebuild if the view misses a batch.
+
+One release-build measurement on a text object with about 215,000 items and
+3,600 markers illustrates where time goes. Incremental diffs took 10–60 µs for
+a character insertion, about 10 µs for a short mark, and about 5 µs for a deletion
+that included a marker. Creating and populating a marker, updating an existing
+marker map, and merging a marker with text each took about 3 ms. A full spans
+walk took about 7 ms, or 14 ms with marker-ID lookups. A single `get_marks`
+lookup took about 10 ms in that workload. [Reported measurements](https://github.com/a-poor/skills/issues/11)
+
 Patch indices are relative to the document state *after the previous patch in
 the batch*, and the doc itself is already fully updated — so you cannot read
 intermediate states from it. The binding therefore takes a spans snapshot at the
@@ -164,7 +178,9 @@ mapping and, after reconciliation rebuilds, a best-effort restore. A Rust
 binding can do strictly better with automerge cursors: capture
 `get_cursor(obj, pos, None)` at the selection endpoints before applying a remote
 batch, resolve with `get_cursor_position` after, and convert to an editor
-position via §3. Cursors are CRDT-stable across concurrent edits:
+position via §3. In 0.12.0, a deleted trailing item can trigger a debug-build
+panic during resolution. See the [cursor caveat and workaround](core-api.md#4-text-cursors-marks).
+For an insertion before a selection endpoint:
 
 ```rust
 // selection endpoint at index 6 ("world" in "hello world")
@@ -212,7 +228,7 @@ for the other app.
 
 ## 7. Gotchas from the reference binding
 
-- After `splice_text`, verify inserted-range marks with `get_marks` and correct
+- After `splice_text`, verify inserted-range marks from the insertion patch and correct
   them — expand inheritance and editor stored-marks disagree routinely.
 - A `DeleteSeq` at a block-marker index is structural — always check before
   treating a delete patch as text.
@@ -240,7 +256,7 @@ Each component with the Rust API it calls (mutators on
    oracle for auto-wrapping, and a marker-backed flag on each produced node.
 3. **Reverse projection** editor tree → `Vec<Span>`: feeds `update_spans`.
 4. **Index mapping**: the §3 event-stream scans; consistent `TextEncoding`.
-5. **Local edit translator**: `splice_text` + `get_marks` + `mark`/`unmark`
+5. **Local edit translator**: `splice_text` + inherited-mark check + `mark`/`unmark`
    (batched) for text and marks; reverse-project + `update_spans` for structure.
 6. **Local reconciliation**: `get_heads` before, `diff(&before, &after)` after,
    compare, patch editor from a fresh projection on mismatch.
